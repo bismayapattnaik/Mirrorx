@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* MirrorX Dark Theme (Default) */
+    --background: 222 47% 2%; /* #02040a - Deep Midnight Blue */
+    --foreground: 220 14% 90%; /* #E5E7EB - Light text */
+
+    --card: 0 0% 10%; /* #1a1a1a - Charcoal */
+    --card-foreground: 220 14% 90%;
+
+    --popover: 0 0% 10%;
+    --popover-foreground: 220 14% 90%;
+
+    --primary: 43 59% 52%; /* #D4AF37 - Gold */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 10%; /* #1a1a1a - Charcoal */
+    --secondary-foreground: 220 14% 90%;
+
+    --accent: 43 59% 52%; /* Gold */
+    --accent-foreground: 0 0% 100%;
+
+    --muted: 220 9% 26%; /* #3f3f46 */
+    --muted-foreground: 220 9% 64%; /* #9CA3AF */
+
+    --destructive: 0 84% 60%; /* #EF4444 */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 43 59% 52% / 0.2; /* Gold with opacity */
+    --input: 222 47% 5%;
+    --ring: 43 59% 52%;
+
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-rajdhani antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-midnight;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gold/30 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gold/50;
+  }
+
+  /* Selection */
+  ::selection {
+    @apply bg-gold/30 text-foreground;
+  }
+}
+
+@layer components {
+  /* Gold gradient button */
+  .btn-gold {
+    @apply bg-gold-gradient text-white font-semibold rounded-lg px-6 py-3
+           transition-all duration-300 hover:brightness-110 hover:shadow-gold-glow
+           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Gold outline button */
+  .btn-gold-outline {
+    @apply border border-gold text-gold font-semibold rounded-lg px-6 py-3
+           transition-all duration-300 hover:bg-gold hover:text-white
+           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Premium card */
+  .card-premium {
+    @apply bg-charcoal border border-gold/20 rounded-2xl p-6
+           transition-all duration-300 hover:translate-y-[-4px] hover:shadow-card-hover;
+  }
+
+  /* Glass morphism effect */
+  .glass {
+    @apply bg-midnight/80 backdrop-blur-lg border-b border-gold/10;
+  }
+
+  /* Gold text gradient */
+  .text-gold-gradient {
+    @apply bg-clip-text text-transparent bg-gold-gradient;
+  }
+
+  /* Input with gold focus */
+  .input-gold {
+    @apply bg-midnight/50 border-b-2 border-gold/30 rounded-t-lg px-4 py-3
+           focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/20
+           transition-all duration-300 text-foreground placeholder:text-muted-foreground;
+  }
+
+  /* Shimmer effect for loading */
+  .shimmer {
+    @apply relative overflow-hidden;
+  }
+
+  .shimmer::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full bg-shimmer-gradient animate-shimmer;
+  }
+
+  /* Premium badge */
+  .badge-premium {
+    @apply inline-flex items-center gap-1 px-3 py-1 rounded-full
+           bg-gold/10 text-gold text-xs font-semibold uppercase tracking-wider;
+  }
+
+  /* Section heading */
+  .section-heading {
+    @apply font-orbitron text-section text-foreground;
+  }
+
+  /* Hero heading */
+  .hero-heading {
+    @apply font-orbitron text-hero text-foreground;
+  }
+}
+
+@layer utilities {
+  /* Animate on scroll utility */
+  .animate-on-scroll {
+    @apply opacity-0 translate-y-5;
+  }
+
+  .animate-on-scroll.visible {
+    @apply opacity-100 translate-y-0 transition-all duration-700;
+  }
+
+  /* Hover lift effect */
+  .hover-lift {
+    @apply transition-transform duration-300 hover:-translate-y-1;
+  }
+
+  /* Gold border glow on hover */
+  .hover-glow {
+    @apply transition-shadow duration-300 hover:shadow-gold-glow;
+  }
+
+  /* Scanning line animation for upload */
+  .scanning-line {
+    @apply absolute left-0 right-0 h-0.5 bg-gold-gradient animate-scanning-line;
+  }
+}
