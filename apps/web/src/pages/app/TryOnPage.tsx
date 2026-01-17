@@ -12,6 +12,9 @@ import {
   RefreshCw,
   X,
   Check,
+  ShoppingBag,
+  ExternalLink,
+  Lightbulb,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -46,6 +49,16 @@ export default function TryOnPage() {
   const [productUrlInput, setProductUrlInput] = useState('');
   const [isExtractingUrl, setIsExtractingUrl] = useState(false);
   const [dragActive, setDragActive] = useState<'selfie' | 'product' | null>(null);
+  const [outfitSuggestions, setOutfitSuggestions] = useState<{
+    analysis: string;
+    stylingTips: string[];
+    complementaryItems: Array<{
+      type: string;
+      description: string;
+      priceRange: string;
+      stores: Array<{ name: string; url: string }>;
+    }>;
+  } | null>(null);
 
   // Fetch credits on mount
   useState(() => {
@@ -168,6 +181,13 @@ export default function TryOnPage() {
       setProgress(100);
       setTryOnResult(result.result_image_url || null);
       setTryOnJob(result as any);
+
+      // Store outfit suggestions if available (FULL_FIT mode)
+      if ((result as any).outfit_suggestions) {
+        setOutfitSuggestions((result as any).outfit_suggestions);
+      } else {
+        setOutfitSuggestions(null);
+      }
 
       // Refresh credits
       const balance = await creditsApi.getBalance();
@@ -516,11 +536,86 @@ export default function TryOnPage() {
                       <Save className="w-4 h-4 mr-2" />
                       Save
                     </Button>
-                    <Button variant="outline" onClick={resetTryOn}>
+                    <Button variant="outline" onClick={() => {
+                      resetTryOn();
+                      setOutfitSuggestions(null);
+                    }}>
                       <RefreshCw className="w-4 h-4 mr-2" />
                       New
                     </Button>
                   </div>
+
+                  {/* Outfit Suggestions for FULL_FIT mode */}
+                  {outfitSuggestions && (
+                    <div className="mt-6 space-y-4">
+                      <div className="border-t border-gold/20 pt-4">
+                        <h3 className="font-semibold text-gold flex items-center gap-2 mb-3">
+                          <Lightbulb className="w-5 h-5" />
+                          Complete Your Look
+                        </h3>
+
+                        {/* Style Analysis */}
+                        {outfitSuggestions.analysis && (
+                          <p className="text-sm text-muted-foreground mb-4">
+                            {outfitSuggestions.analysis}
+                          </p>
+                        )}
+
+                        {/* Styling Tips */}
+                        {outfitSuggestions.stylingTips && outfitSuggestions.stylingTips.length > 0 && (
+                          <div className="mb-4">
+                            <p className="text-xs font-medium text-gold mb-2">Styling Tips:</p>
+                            <ul className="text-xs text-muted-foreground space-y-1">
+                              {outfitSuggestions.stylingTips.slice(0, 3).map((tip, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <span className="text-gold">•</span>
+                                  {tip}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Complementary Items with Buy Links */}
+                        {outfitSuggestions.complementaryItems && outfitSuggestions.complementaryItems.length > 0 && (
+                          <div className="space-y-3">
+                            <p className="text-xs font-medium text-gold mb-2">
+                              <ShoppingBag className="w-4 h-4 inline mr-1" />
+                              Suggested Items to Buy:
+                            </p>
+                            {outfitSuggestions.complementaryItems.map((item, index) => (
+                              <div
+                                key={index}
+                                className="bg-charcoal rounded-lg p-3 space-y-2"
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <p className="font-medium text-sm">{item.type}</p>
+                                    <p className="text-xs text-muted-foreground">{item.description}</p>
+                                    <p className="text-xs text-gold mt-1">{item.priceRange}</p>
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {item.stores.slice(0, 4).map((store, storeIndex) => (
+                                    <a
+                                      key={storeIndex}
+                                      href={store.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 px-2 py-1 bg-gold/10 hover:bg-gold/20 rounded text-xs text-gold transition-colors"
+                                    >
+                                      {store.name}
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               ) : (
                 <motion.div

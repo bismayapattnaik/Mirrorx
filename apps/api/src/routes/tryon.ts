@@ -4,9 +4,18 @@ import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { query, withTransaction } from '../db/index.js';
-import { generateTryOnImage } from '../services/gemini.js';
+import { generateTryOnImage, getStyleRecommendations } from '../services/gemini.js';
 import { DAILY_FREE_TRYONS } from '@mirrorx/shared';
 import type { TryOnJob, TryOnJobStatus } from '@mirrorx/shared';
+
+// Indian fashion e-commerce stores for buy links
+const INDIAN_STORES = [
+  { name: 'Myntra', url: 'https://www.myntra.com/search?q=' },
+  { name: 'Ajio', url: 'https://www.ajio.com/search/?text=' },
+  { name: 'Amazon Fashion', url: 'https://www.amazon.in/s?k=' },
+  { name: 'Flipkart Fashion', url: 'https://www.flipkart.com/search?q=' },
+  { name: 'Meesho', url: 'https://www.meesho.com/search?q=' },
+];
 
 const router = Router();
 
@@ -164,12 +173,39 @@ router.post(
         }
       });
 
+      // For FULL_FIT mode, get style recommendations and buy links
+      let outfitSuggestions = null;
+      if (mode === 'FULL_FIT' && productBase64) {
+        try {
+          const styleRecs = await getStyleRecommendations(productBase64);
+
+          // Generate buy links for each complementary item
+          const buyLinks = styleRecs.complementaryItems.map(item => ({
+            ...item,
+            stores: INDIAN_STORES.map(store => ({
+              name: store.name,
+              url: `${store.url}${encodeURIComponent(item.description)}`,
+            })),
+          }));
+
+          outfitSuggestions = {
+            analysis: styleRecs.analysis,
+            stylingTips: styleRecs.suggestions,
+            complementaryItems: buyLinks,
+          };
+        } catch (recError) {
+          console.error('Style recommendations failed:', recError);
+          // Continue without recommendations
+        }
+      }
+
       res.json({
         job_id: jobId,
         status: 'SUCCEEDED' as TryOnJobStatus,
         result_image_url: resultImage,
         credits_used: 1,
         processing_time_ms: processingTime,
+        outfit_suggestions: outfitSuggestions,
       });
     } catch (error) {
       console.error('Try-on error:', error);
