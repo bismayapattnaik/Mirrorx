@@ -1,23 +1,31 @@
 {
-  "name": "facefit",
+  "name": "mirrorx",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react-dom": "^19.2.3",
-    "@google/genai": "^1.35.0",
-    "react": "^19.2.3",
-    "lucide-react": "^0.562.0"
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@mirrorx/web",
+    "dev:api": "turbo run dev --filter=@mirrorx/api",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:migrate": "turbo run db:migrate --filter=@mirrorx/api",
+    "db:seed": "turbo run db:seed --filter=@mirrorx/api",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "eslint": "^9.15.0",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "~5.8.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
   }
 }
