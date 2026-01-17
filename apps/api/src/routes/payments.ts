@@ -8,11 +8,14 @@ import { createOrderRequestSchema, verifyPaymentRequestSchema, CREDIT_PACKS, SUB
 
 const router = Router();
 
-// Initialize Razorpay
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || '',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || '',
-});
+// Initialize Razorpay only if credentials are provided
+let razorpay: Razorpay | null = null;
+if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+  razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+}
 
 // POST /payments/create-order
 router.post(
@@ -20,6 +23,13 @@ router.post(
   authenticate,
   validate(createOrderRequestSchema),
   async (req: AuthRequest, res: Response) => {
+    if (!razorpay) {
+      return res.status(503).json({
+        error: 'Service unavailable',
+        message: 'Payment service is not configured',
+      });
+    }
+
     try {
       const { kind, sku } = req.body;
       const userId = req.userId!;
