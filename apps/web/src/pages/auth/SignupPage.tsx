@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,30 +10,14 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useAuthStore } from '@/store/auth-store';
-import { authApi, ApiError } from '@/lib/api';
 import { signupSchema, type SignupInput } from '@mirrorx/shared';
 import { useToast } from '@/hooks/use-toast';
-
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: any) => void;
-          renderButton: (element: HTMLElement, config: any) => void;
-          prompt: () => void;
-        };
-      };
-    };
-  }
-}
 
 export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const googleButtonRef = useRef<HTMLDivElement>(null);
-  const { login } = useAuthStore();
+  const { signUpWithEmail, signInWithGoogle } = useAuthStore();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -45,85 +29,47 @@ export default function SignupPage() {
     resolver: zodResolver(signupSchema),
   });
 
-  const handleGoogleCallback = async (response: { credential: string }) => {
-    setGoogleLoading(true);
-    try {
-      const authResponse = await authApi.googleAuth(response.credential);
-      login(authResponse.user, authResponse.token);
-      toast({
-        title: 'Welcome to MirrorX!',
-        description: 'Signed in with Google.',
-      });
-      navigate('/app/tryon');
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Google sign-in failed';
-      toast({
-        variant: 'destructive',
-        title: 'Sign-in failed',
-        description: message,
-      });
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    // Make handleGoogleCallback available globally for Google SDK
-    (window as any).handleGoogleCallback = handleGoogleCallback;
-
-    // Load Google Identity Services script
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    document.body.appendChild(script);
-
-    script.onload = () => {
-      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-      if (window.google && clientId && googleButtonRef.current) {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleGoogleCallback,
-        });
-
-        // Render actual Google button
-        window.google.accounts.id.renderButton(googleButtonRef.current, {
-          theme: 'filled_black',
-          size: 'large',
-          width: '100%',
-          text: 'continue_with',
-          shape: 'rectangular',
-        });
-      }
-    };
-
-    return () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-      delete (window as any).handleGoogleCallback;
-    };
-  }, []);
-
   const onSubmit = async (data: SignupInput) => {
     setIsLoading(true);
     try {
-      const response = await authApi.signup(data.email, data.password, data.name);
-      login(response.user, response.token);
+      await signUpWithEmail(data.email, data.password, data.name);
       toast({
         title: 'Welcome to MirrorX!',
         description: 'Your account has been created.',
       });
       navigate('/app/tryon');
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Failed to create account';
-      toast({
-        variant: 'destructive',
-        title: 'Signup failed',
-        description: message,
-      });
+    } catch (error: any) {
+      const message = error.message || 'Failed to create account';
+      // Handle email confirmation required
+      if (message.includes('check your email') || message.includes('confirm')) {
+        toast({
+          title: 'Check your email',
+          description: 'Please confirm your email address to continue.',
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Signup failed',
+          description: message,
+        });
+      }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignup = async () => {
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+      // Redirect happens automatically via Supabase OAuth
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Google sign-in failed',
+        description: error.message || 'Please try again.',
+      });
+      setGoogleLoading(false);
     }
   };
 
@@ -152,12 +98,39 @@ export default function SignupPage() {
             <CardDescription>Start your virtual try-on journey</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Google Sign-In Button Container */}
-            <div
-              ref={googleButtonRef}
-              className="w-full flex justify-center min-h-[44px]"
-              style={{ colorScheme: 'light' }}
-            />
+            {/* Google Sign-In Button */}
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleGoogleSignup}
+              disabled={isLoading || googleLoading}
+            >
+              {googleLoading ? (
+                'Connecting...'
+              ) : (
+                <>
+                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+                    <path
+                      fill="currentColor"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    />
+                    <path
+                      fill="currentColor"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    />
+                  </svg>
+                  Continue with Google
+                </>
+              )}
+            </Button>
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
@@ -207,7 +180,7 @@ export default function SignupPage() {
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="At least 8 characters"
+                    placeholder="At least 6 characters"
                     className="pl-10 pr-10"
                     {...register('password')}
                   />
