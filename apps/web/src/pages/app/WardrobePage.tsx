@@ -37,7 +37,7 @@ import { useAppStore } from '@/store/app-store';
 import { useAuthStore } from '@/store/auth-store';
 import { wardrobeApi } from '@/lib/api';
 import { formatDate, cn } from '@/lib/utils';
-import type { WardrobeItem } from '@mirrorx/shared';
+import type { WardrobeItem } from '@facefit/shared';
 
 const categories = [
   { value: 'all', label: 'All Categories' },

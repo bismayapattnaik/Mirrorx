@@ -28,9 +28,9 @@ async function seed() {
       `INSERT INTO users (id, email, password_hash, name, phone, credits_balance, subscription_tier, email_verified)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (email) DO NOTHING`,
-      [testUserId, 'test@mirrorx.co.in', passwordHash, 'Test User', '9876543210', 50, 'FREE', true]
+      [testUserId, 'test@facefit.co.in', passwordHash, 'Test User', '9876543210', 50, 'FREE', true]
     );
-    console.log('✅ Created test user: test@mirrorx.co.in / password123');
+    console.log('✅ Created test user: test@facefit.co.in / password123');
 
     // Create pro user
     const proUserId = uuidv4();
@@ -38,9 +38,9 @@ async function seed() {
       `INSERT INTO users (id, email, password_hash, name, credits_balance, subscription_tier, email_verified)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (email) DO NOTHING`,
-      [proUserId, 'pro@mirrorx.co.in', passwordHash, 'Pro User', 500, 'PRO', true]
+      [proUserId, 'pro@facefit.co.in', passwordHash, 'Pro User', 500, 'PRO', true]
     );
-    console.log('✅ Created pro user: pro@mirrorx.co.in / password123');
+    console.log('✅ Created pro user: pro@facefit.co.in / password123');
 
     // Add initial credits ledger entry for test user
     await client.query(

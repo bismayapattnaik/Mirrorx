@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/store/auth-store';
 import { paymentsApi } from '@/lib/api';
 import { cn, formatPrice } from '@/lib/utils';
-import { CREDIT_PACKS, SUBSCRIPTION_PLANS } from '@mirrorx/shared';
+import { CREDIT_PACKS, SUBSCRIPTION_PLANS } from '@facefit/shared';
 
 export default function PricingPage() {
   const { toast } = useToast();
@@ -321,8 +321,8 @@ export default function PricingPage() {
         >
           <p className="text-muted-foreground">
             Questions? Contact us at{' '}
-            <a href="mailto:support@mirrorx.co.in" className="text-gold hover:underline">
-              support@mirrorx.co.in
+            <a href="mailto:support@facefit.co.in" className="text-gold hover:underline">
+              support@facefit.co.in
             </a>
           </p>
         </motion.div>

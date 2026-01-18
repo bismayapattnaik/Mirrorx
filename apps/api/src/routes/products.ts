@@ -3,8 +3,8 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { productExtractRequestSchema } from '@mirrorx/shared';
-import type { ProductExtractResponse } from '@mirrorx/shared';
+import { productExtractRequestSchema } from '@facefit/shared';
+import type { ProductExtractResponse } from '@facefit/shared';
 
 const router = Router();
 

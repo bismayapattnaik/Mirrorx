@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '@/lib/supabase';
-import type { User, SubscriptionTier } from '@mirrorx/shared';
+import type { User, SubscriptionTier } from '@facefit/shared';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 interface AuthState {
@@ -35,7 +35,7 @@ const mapSupabaseUser = (supabaseUser: SupabaseUser, additionalData?: any): User
   google_id: supabaseUser.app_metadata?.provider === 'google' ? supabaseUser.id : null,
   credits_balance: additionalData?.credits_balance || 0,
   subscription_tier: additionalData?.subscription_tier || 'FREE',
-  created_at: supabaseUser.created_at,
+  created_at: new Date(supabaseUser.created_at),
 });
 
 export const useAuthStore = create<AuthState>()(

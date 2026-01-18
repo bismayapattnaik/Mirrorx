@@ -1,12 +1,12 @@
 {
-  "name": "@mirrorx/api",
+  "name": "@facefit/api",
   "version": "1.0.0",
   "type": "module",
   "main": "./dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "build": "echo 'Using tsx for runtime, skipping tsc build'",
+    "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
     "test": "vitest run",
@@ -18,7 +18,7 @@
   "dependencies": {
     "@google/genai": "^1.37.0",
     "@google/generative-ai": "^0.21.0",
-    "@mirrorx/shared": "workspace:*",
+    "@facefit/shared": "workspace:*",
     "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
     "cheerio": "^1.0.0",

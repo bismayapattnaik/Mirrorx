@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { query } from '../db/index.js';
 import { validate } from '../middleware/validate.js';
-import { merchantRegisterSchema } from '@mirrorx/shared';
+import { merchantRegisterSchema } from '@facefit/shared';
 
 const router = Router();
 

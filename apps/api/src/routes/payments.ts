@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { query, withTransaction } from '../db/index.js';
-import { createOrderRequestSchema, verifyPaymentRequestSchema, CREDIT_PACKS, SUBSCRIPTION_PLANS } from '@mirrorx/shared';
+import { createOrderRequestSchema, verifyPaymentRequestSchema, CREDIT_PACKS, SUBSCRIPTION_PLANS } from '@facefit/shared';
 
 const router = Router();
 

@@ -5,8 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { query, withTransaction } from '../db/index.js';
 import { generateTryOnImage, getStyleRecommendations } from '../services/gemini.js';
-import { DAILY_FREE_TRYONS } from '@mirrorx/shared';
-import type { TryOnJob, TryOnJobStatus } from '@mirrorx/shared';
+import { DAILY_FREE_TRYONS } from '@facefit/shared';
+import type { TryOnJob, TryOnJobStatus } from '@facefit/shared';
 
 // Indian fashion e-commerce stores for buy links
 const INDIAN_STORES = [

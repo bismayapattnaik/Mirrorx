@@ -110,7 +110,7 @@ export default function PrivacyPage() {
               <li>Grievance redressal</li>
             </ul>
             <p className="text-muted-foreground mt-4">
-              To exercise these rights, visit your Account settings or contact us at privacy@mirrorx.co.in
+              To exercise these rights, visit your Account settings or contact us at privacy@facefit.co.in
             </p>
           </section>
 
@@ -145,8 +145,8 @@ export default function PrivacyPage() {
               For privacy-related inquiries or to exercise your rights:
             </p>
             <ul className="list-disc list-inside text-muted-foreground space-y-2 mt-4">
-              <li>Email: privacy@mirrorx.co.in</li>
-              <li>Data Protection Officer: dpo@mirrorx.co.in</li>
+              <li>Email: privacy@facefit.co.in</li>
+              <li>Data Protection Officer: dpo@facefit.co.in</li>
             </ul>
           </section>
         </div>

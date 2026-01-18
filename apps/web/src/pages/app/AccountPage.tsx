@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { motion } from 'framer-motion';
 import {
   User,
   Mail,
@@ -30,8 +29,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/store/auth-store';
 import { authApi, ApiError } from '@/lib/api';
-import { updateProfileSchema, type UpdateProfileInput } from '@mirrorx/shared';
-import { formatDate, formatPrice } from '@/lib/utils';
+import { updateProfileSchema, type UpdateProfileInput } from '@facefit/shared';
+import { formatDate } from '@/lib/utils';
 
 export default function AccountPage() {
   const { toast } = useToast();

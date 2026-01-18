@@ -2,8 +2,8 @@ import { Router, Response } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { validate, validateQuery } from '../middleware/validate.js';
 import { query } from '../db/index.js';
-import { wardrobeQuerySchema, saveToWardrobeSchema } from '@mirrorx/shared';
-import type { WardrobeItem } from '@mirrorx/shared';
+import { wardrobeQuerySchema, saveToWardrobeSchema } from '@facefit/shared';
+import type { WardrobeItem } from '@facefit/shared';
 
 const router = Router();
 
