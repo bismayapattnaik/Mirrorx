@@ -179,15 +179,10 @@ export const useAuthStore = create<AuthState>()(
       },
 
       signInWithGoogle: async () => {
-        // Use localhost for redirect if on local network IP
-        const origin = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-          ? window.location.origin
-          : `http://localhost:${window.location.port || 3000}`;
-
         const { error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: `${origin}/app/tryon`,
+            redirectTo: `${window.location.origin}/app/tryon`,
             queryParams: {
               access_type: 'offline',
               prompt: 'consent',
