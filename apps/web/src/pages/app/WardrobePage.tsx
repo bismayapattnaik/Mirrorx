@@ -40,7 +40,7 @@ import { formatDate, cn } from '@/lib/utils';
 import type { WardrobeItem } from '@mirrorx/shared';
 
 const categories = [
-  { value: '', label: 'All Categories' },
+  { value: 'all', label: 'All Categories' },
   { value: 'casual', label: 'Casual' },
   { value: 'formal', label: 'Formal' },
   { value: 'ethnic', label: 'Ethnic' },
@@ -65,7 +65,7 @@ export default function WardrobePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState('all');
   const [sort, setSort] = useState('newest');
   const [selectedItem, setSelectedItem] = useState<WardrobeItem | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -80,7 +80,7 @@ export default function WardrobePage() {
       try {
         const response = await wardrobeApi.list({
           search: search || undefined,
-          category: category || undefined,
+          category: category === 'all' ? undefined : category,
           sort,
         });
         setWardrobeItems(response.items);
