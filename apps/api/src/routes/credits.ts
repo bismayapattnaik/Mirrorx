@@ -1,8 +1,8 @@
 import { Router, Response } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { query } from '../db/index.js';
-import { DAILY_FREE_TRYONS } from '@facefit/shared';
-import type { CreditLedgerEntry, CreditsBalanceResponse } from '@facefit/shared';
+import { DAILY_FREE_TRYONS } from '@mirrorx/shared';
+import type { CreditLedgerEntry, CreditsBalanceResponse } from '@mirrorx/shared';
 
 const router = Router();
 

@@ -5,8 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { query } from '../db/index.js';
 import { generateToken } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { signupSchema, loginSchema, googleAuthSchema } from '@facefit/shared';
-import type { User } from '@facefit/shared';
+import { signupSchema, loginSchema, googleAuthSchema } from '@mirrorx/shared';
+import type { User } from '@mirrorx/shared';
 
 const router = Router();
 

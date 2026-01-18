@@ -1,5 +1,5 @@
 {
-  "name": "@facefit/api",
+  "name": "@mirrorx/api",
   "version": "1.0.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -18,7 +18,7 @@
   "dependencies": {
     "@google/genai": "^1.37.0",
     "@google/generative-ai": "^0.21.0",
-    "@facefit/shared": "workspace:*",
+    "@mirrorx/shared": "workspace:*",
     "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
     "cheerio": "^1.0.0",

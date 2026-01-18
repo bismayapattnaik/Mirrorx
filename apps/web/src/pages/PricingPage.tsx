@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/store/auth-store';
 import { paymentsApi } from '@/lib/api';
 import { cn, formatPrice } from '@/lib/utils';
-import { CREDIT_PACKS, SUBSCRIPTION_PLANS } from '@facefit/shared';
+import { CREDIT_PACKS, SUBSCRIPTION_PLANS } from '@mirrorx/shared';
 
 export default function PricingPage() {
   const { toast } = useToast();

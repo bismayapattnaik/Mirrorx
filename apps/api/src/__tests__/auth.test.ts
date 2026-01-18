@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { signupSchema, loginSchema, updateProfileSchema } from '@facefit/shared';
+import { signupSchema, loginSchema, updateProfileSchema } from '@mirrorx/shared';
 
 describe('Auth Validation Schemas', () => {
   describe('Signup Schema', () => {

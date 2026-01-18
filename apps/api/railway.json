@@ -2,10 +2,10 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "cd ../.. && npm install -g pnpm && pnpm install && pnpm --filter @facefit/shared build && pnpm --filter @facefit/api build"
+    "buildCommand": "cd ../.. && npm install -g pnpm && pnpm install && pnpm --filter @mirrorx/shared build && pnpm --filter @mirrorx/api build"
   },
   "deploy": {
-    "startCommand": "cd ../.. && pnpm --filter @facefit/api start",
+    "startCommand": "cd ../.. && pnpm --filter @mirrorx/api start",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE",

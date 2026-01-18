@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '@/lib/supabase';
-import type { User, SubscriptionTier } from '@facefit/shared';
+import type { User, SubscriptionTier } from '@mirrorx/shared';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 interface AuthState {

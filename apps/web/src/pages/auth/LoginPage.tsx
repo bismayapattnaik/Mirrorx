@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useAuthStore } from '@/store/auth-store';
-import { loginSchema, type LoginInput } from '@facefit/shared';
+import { loginSchema, type LoginInput } from '@mirrorx/shared';
 import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {

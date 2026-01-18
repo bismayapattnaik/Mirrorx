@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { query, withTransaction } from '../db/index.js';
-import { updateProfileSchema } from '@facefit/shared';
+import { updateProfileSchema } from '@mirrorx/shared';
 
 const router = Router();
 

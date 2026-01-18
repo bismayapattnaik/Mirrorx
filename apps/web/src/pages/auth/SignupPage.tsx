@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useAuthStore } from '@/store/auth-store';
-import { signupSchema, type SignupInput } from '@facefit/shared';
+import { signupSchema, type SignupInput } from '@mirrorx/shared';
 import { useToast } from '@/hooks/use-toast';
 
 export default function SignupPage() {

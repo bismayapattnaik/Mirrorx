@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd ../.. && pnpm install && pnpm --filter @facefit/shared build && pnpm --filter @facefit/web build",
+  "buildCommand": "cd ../.. && pnpm install && pnpm --filter @mirrorx/shared build && pnpm --filter @mirrorx/web build",
   "outputDirectory": "dist",
   "installCommand": "npm install -g pnpm && pnpm install",
   "framework": "vite",

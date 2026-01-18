@@ -1,7 +1,7 @@
 import { Router, Response, Request } from 'express';
 import crypto from 'crypto';
 import { query, withTransaction } from '../db/index.js';
-import { CREDIT_PACKS, SUBSCRIPTION_PLANS } from '@facefit/shared';
+import { CREDIT_PACKS, SUBSCRIPTION_PLANS } from '@mirrorx/shared';
 
 const router = Router();
 

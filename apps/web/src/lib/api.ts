@@ -9,7 +9,7 @@ import type {
   WardrobeListResponse,
   WardrobeItem,
   CreditLedgerEntry,
-} from '@facefit/shared';
+} from '@mirrorx/shared';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
