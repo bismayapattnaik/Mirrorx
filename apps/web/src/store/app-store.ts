@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import type { WardrobeItem, TryOnJob, TryOnMode } from '@mirrorx/shared';
+import type { WardrobeItem, TryOnResponse, TryOnMode } from '@mirrorx/shared';
 
 interface TryOnState {
   selfieImage: string | null;
   productImage: string | null;
   productUrl: string | null;
   mode: TryOnMode;
-  currentJob: TryOnJob | null;
+  currentJob: TryOnResponse | null;
   resultImage: string | null;
 }
 
@@ -17,7 +17,7 @@ interface AppState {
   setTryOnProduct: (image: string | null) => void;
   setTryOnProductUrl: (url: string | null) => void;
   setTryOnMode: (mode: TryOnMode) => void;
-  setTryOnJob: (job: TryOnJob | null) => void;
+  setTryOnJob: (job: TryOnResponse | null) => void;
   setTryOnResult: (image: string | null) => void;
   resetTryOn: () => void;
 

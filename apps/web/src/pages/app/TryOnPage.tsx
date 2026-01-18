@@ -180,7 +180,7 @@ export default function TryOnPage() {
 
       setProgress(100);
       setTryOnResult(result.result_image_url || null);
-      setTryOnJob(result as any);
+      setTryOnJob(result);
 
       // Store outfit suggestions if available (FULL_FIT mode)
       if ((result as any).outfit_suggestions) {

@@ -3,7 +3,7 @@
 // Export all types
 export * from './types/index.js';
 
-// Export schemas only (not the inferred types to avoid duplicates)
+// Export schemas and inferred types
 export {
   // Common
   uuidSchema,
@@ -42,4 +42,16 @@ export {
   // API
   apiErrorSchema,
   paginationSchema,
+  // Inferred Types from schemas
+  type SignupInput,
+  type LoginInput,
+  type UpdateProfileInput,
+  type GoogleAuthInput,
+  type TryOnRequestInput,
+  type ProductExtractRequestInput,
+  type CreateOrderRequestInput,
+  type VerifyPaymentRequestInput,
+  type WardrobeQueryInput,
+  type SaveToWardrobeInput,
+  type MerchantRegisterInput,
 } from './schemas/index.js';
