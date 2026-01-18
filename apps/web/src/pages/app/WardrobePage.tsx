@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Shirt,
@@ -10,6 +11,9 @@ import {
   ExternalLink,
   Filter,
   SortAsc,
+  Lock,
+  Crown,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -30,12 +34,13 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAppStore } from '@/store/app-store';
+import { useAuthStore } from '@/store/auth-store';
 import { wardrobeApi } from '@/lib/api';
 import { formatDate, cn } from '@/lib/utils';
 import type { WardrobeItem } from '@mirrorx/shared';
 
 const categories = [
-  { value: '', label: 'All Categories' },
+  { value: 'all', label: 'All Categories' },
   { value: 'casual', label: 'Casual' },
   { value: 'formal', label: 'Formal' },
   { value: 'ethnic', label: 'Ethnic' },
@@ -49,17 +54,24 @@ const sortOptions = [
   { value: 'brand', label: 'By Brand' },
 ];
 
+const FREE_WARDROBE_LIMIT = 5;
+
 export default function WardrobePage() {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
   const { wardrobeItems, setWardrobeItems, removeWardrobeItem } = useAppStore();
 
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState('all');
   const [sort, setSort] = useState('newest');
   const [selectedItem, setSelectedItem] = useState<WardrobeItem | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  const isPremium = user?.subscription_tier !== 'FREE';
 
   // Fetch wardrobe items
   useEffect(() => {
@@ -68,7 +80,7 @@ export default function WardrobePage() {
       try {
         const response = await wardrobeApi.list({
           search: search || undefined,
-          category: category || undefined,
+          category: category === 'all' ? undefined : category,
           sort,
         });
         setWardrobeItems(response.items);
@@ -111,6 +123,16 @@ export default function WardrobePage() {
     link.click();
   };
 
+  const handleItemClick = (item: WardrobeItem, index: number) => {
+    if (!isPremium && index >= FREE_WARDROBE_LIMIT) {
+      setShowUpgradeModal(true);
+    } else {
+      setSelectedItem(item);
+    }
+  };
+
+  const isItemLocked = (index: number) => !isPremium && index >= FREE_WARDROBE_LIMIT;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -124,8 +146,36 @@ export default function WardrobePage() {
         <div className="text-right">
           <p className="text-2xl font-bold text-gold">{wardrobeItems.length}</p>
           <p className="text-sm text-muted-foreground">saved looks</p>
+          {!isPremium && wardrobeItems.length > FREE_WARDROBE_LIMIT && (
+            <p className="text-xs text-gold mt-1">
+              {wardrobeItems.length - FREE_WARDROBE_LIMIT} locked
+            </p>
+          )}
         </div>
       </div>
+
+      {/* Premium Banner for Free Users */}
+      {!isPremium && wardrobeItems.length > FREE_WARDROBE_LIMIT && (
+        <Card className="bg-gradient-to-r from-gold/20 to-gold/5 border-gold/30">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gold/20 flex items-center justify-center">
+                <Crown className="w-5 h-5 text-gold" />
+              </div>
+              <div>
+                <p className="font-semibold">Unlock Your Full Wardrobe</p>
+                <p className="text-sm text-muted-foreground">
+                  Upgrade to Premium to view all {wardrobeItems.length} saved looks
+                </p>
+              </div>
+            </div>
+            <Button onClick={() => navigate('/app/pricing')} className="bg-gold hover:bg-gold/90">
+              <Sparkles className="w-4 h-4 mr-2" />
+              Upgrade Now
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters */}
       <Card>
@@ -230,38 +280,64 @@ export default function WardrobePage() {
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ delay: index * 0.05 }}
               >
-                <Card className="group overflow-hidden cursor-pointer" onClick={() => setSelectedItem(item)}>
+                <Card
+                  className={cn(
+                    'group overflow-hidden cursor-pointer relative',
+                    isItemLocked(index) && 'ring-2 ring-gold/30'
+                  )}
+                  onClick={() => handleItemClick(item, index)}
+                >
                   <div className="relative aspect-[3/4]">
                     <img
                       src={item.tryon_image_url}
                       alt={item.brand || 'Wardrobe item'}
-                      className="w-full h-full object-cover"
+                      className={cn(
+                        'w-full h-full object-cover transition-all',
+                        isItemLocked(index) && 'blur-md'
+                      )}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-full group-hover:translate-y-0 transition-transform">
-                      <div className="flex gap-2">
-                        <Button
-                          size="icon"
-                          variant="secondary"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownload(item);
-                          }}
-                        >
-                          <Download className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteConfirm(item.id);
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+
+                    {/* Locked Overlay */}
+                    {isItemLocked(index) && (
+                      <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
+                        <div className="w-12 h-12 rounded-full bg-gold/20 flex items-center justify-center mb-2">
+                          <Lock className="w-6 h-6 text-gold" />
+                        </div>
+                        <p className="text-sm font-medium text-white">Premium Only</p>
+                        <p className="text-xs text-white/70">Upgrade to unlock</p>
                       </div>
-                    </div>
+                    )}
+
+                    {/* Hover Actions for Unlocked Items */}
+                    {!isItemLocked(index) && (
+                      <>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-full group-hover:translate-y-0 transition-transform">
+                          <div className="flex gap-2">
+                            <Button
+                              size="icon"
+                              variant="secondary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownload(item);
+                              }}
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteConfirm(item.id);
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <CardContent className="p-3">
                     {item.brand && (
@@ -283,16 +359,32 @@ export default function WardrobePage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {wardrobeItems.map((item) => (
-            <Card key={item.id} className="overflow-hidden">
+          {wardrobeItems.map((item, index) => (
+            <Card
+              key={item.id}
+              className={cn(
+                'overflow-hidden',
+                isItemLocked(index) && 'ring-2 ring-gold/30'
+              )}
+            >
               <CardContent className="p-0">
                 <div className="flex gap-4 items-center p-4">
-                  <img
-                    src={item.tryon_image_url}
-                    alt={item.brand || 'Wardrobe item'}
-                    className="w-20 h-28 object-cover rounded-lg cursor-pointer"
-                    onClick={() => setSelectedItem(item)}
-                  />
+                  <div className="relative">
+                    <img
+                      src={item.tryon_image_url}
+                      alt={item.brand || 'Wardrobe item'}
+                      className={cn(
+                        'w-20 h-28 object-cover rounded-lg cursor-pointer',
+                        isItemLocked(index) && 'blur-md'
+                      )}
+                      onClick={() => handleItemClick(item, index)}
+                    />
+                    {isItemLocked(index) && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Lock className="w-6 h-6 text-gold" />
+                      </div>
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     {item.brand && (
                       <p className="font-semibold">{item.brand}</p>
@@ -302,7 +394,7 @@ export default function WardrobePage() {
                         {item.category}
                       </p>
                     )}
-                    {item.tags && item.tags.length > 0 && (
+                    {item.tags && item.tags.length > 0 && !isItemLocked(index) && (
                       <div className="flex gap-1 mt-2 flex-wrap">
                         {item.tags.slice(0, 3).map((tag) => (
                           <span
@@ -318,26 +410,37 @@ export default function WardrobePage() {
                       {formatDate(item.created_at)}
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="icon" variant="ghost" onClick={() => handleDownload(item)}>
-                      <Download className="w-4 h-4" />
-                    </Button>
-                    {item.product_url && (
-                      <Button size="icon" variant="ghost" asChild>
-                        <a href={item.product_url} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      </Button>
-                    )}
+                  {isItemLocked(index) ? (
                     <Button
-                      size="icon"
-                      variant="ghost"
-                      className="text-destructive"
-                      onClick={() => setDeleteConfirm(item.id)}
+                      size="sm"
+                      onClick={() => setShowUpgradeModal(true)}
+                      className="bg-gold hover:bg-gold/90"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Lock className="w-4 h-4 mr-1" />
+                      Unlock
                     </Button>
-                  </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button size="icon" variant="ghost" onClick={() => handleDownload(item)}>
+                        <Download className="w-4 h-4" />
+                      </Button>
+                      {item.product_url && (
+                        <Button size="icon" variant="ghost" asChild>
+                          <a href={item.product_url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </Button>
+                      )}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-destructive"
+                        onClick={() => setDeleteConfirm(item.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -427,6 +530,53 @@ export default function WardrobePage() {
               onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
             >
               Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upgrade Modal */}
+      <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Crown className="w-5 h-5 text-gold" />
+              Upgrade to Premium
+            </DialogTitle>
+            <DialogDescription>
+              Unlock your full wardrobe and get unlimited access to all your saved looks.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-charcoal rounded-xl p-4 space-y-3">
+              <h4 className="font-semibold">Premium Benefits:</h4>
+              <ul className="space-y-2 text-sm">
+                <li className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-gold" />
+                  Unlimited wardrobe storage
+                </li>
+                <li className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-gold" />
+                  Unlimited daily try-ons
+                </li>
+                <li className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-gold" />
+                  Full Fit outfit suggestions
+                </li>
+                <li className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-gold" />
+                  Priority AI processing
+                </li>
+              </ul>
+            </div>
+            <Button
+              className="w-full bg-gold hover:bg-gold/90"
+              onClick={() => {
+                setShowUpgradeModal(false);
+                navigate('/app/pricing');
+              }}
+            >
+              View Pricing Plans
             </Button>
           </div>
         </DialogContent>

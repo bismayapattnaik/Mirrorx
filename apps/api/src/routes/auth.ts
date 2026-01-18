@@ -42,9 +42,18 @@ router.post('/signup', validate(signupSchema), async (req, res: Response) => {
     const token = generateToken(user.id, user.email);
 
     res.status(201).json({ user, token });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Signup error:', error);
-    res.status(500).json({ error: 'Server error', message: 'Failed to create account' });
+    // Provide more specific error message
+    let message = 'Failed to create account';
+    if (error.code === '42P01') {
+      message = 'Database tables not set up. Please run migrations.';
+    } else if (error.code === '23505') {
+      message = 'An account with this email already exists';
+    } else if (error.message) {
+      message = error.message;
+    }
+    res.status(500).json({ error: 'Server error', message });
   }
 });
 

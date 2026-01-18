@@ -28,7 +28,9 @@ async function fetchWithAuth<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = useAuthStore.getState().token;
+  // Use Supabase session access token
+  const session = useAuthStore.getState().session;
+  const token = session?.access_token;
 
   const headers: HeadersInit = {
     ...options.headers,

@@ -28,10 +28,21 @@ app.use(helmet());
 const allowedOrigins = [
   'https://mirrorx.co.in',
   'https://www.mirrorx.co.in',
+  'https://api.mirrorx.co.in',
 ];
 
+// Allow any origin in development
 if (process.env.NODE_ENV === 'development') {
-  allowedOrigins.push('http://localhost:3000', 'http://127.0.0.1:3000');
+  allowedOrigins.push(
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+  );
+}
+
+// Allow custom CORS origins via environment variable
+if (process.env.CORS_ORIGIN) {
+  allowedOrigins.push(...process.env.CORS_ORIGIN.split(','));
 }
 
 app.use(
@@ -92,6 +103,7 @@ app.get('/health', async (_req, res) => {
 // Routes
 app.use('/auth', authRoutes);
 app.use('/me', userRoutes);
+app.use('/user', userRoutes); // Alias for /me
 app.use('/tryon', tryOnRoutes);
 app.use('/products', productRoutes);
 app.use('/credits', creditsRoutes);

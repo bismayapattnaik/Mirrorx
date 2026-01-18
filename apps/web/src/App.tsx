@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuthStore } from '@/store/auth-store';
-import { authApi } from '@/lib/api';
 import { Toaster } from '@/components/ui/toaster';
 
 // Pages
@@ -56,26 +55,12 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const { token, login, logout, setLoading } = useAuthStore();
+  const { initializeAuth } = useAuthStore();
 
-  // Verify token on mount
+  // Initialize Supabase auth on mount
   useEffect(() => {
-    async function verifyAuth() {
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const user = await authApi.me();
-        login(user, token);
-      } catch {
-        logout();
-      }
-    }
-
-    verifyAuth();
-  }, []);
+    initializeAuth();
+  }, [initializeAuth]);
 
   return (
     <>
