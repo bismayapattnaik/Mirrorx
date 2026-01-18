@@ -321,8 +321,8 @@ export default function PricingPage() {
         >
           <p className="text-muted-foreground">
             Questions? Contact us at{' '}
-            <a href="mailto:support@facefit.co.in" className="text-gold hover:underline">
-              support@facefit.co.in
+            <a href="mailto:support@mirrorx.co.in" className="text-gold hover:underline">
+              support@mirrorx.co.in
             </a>
           </p>
         </motion.div>

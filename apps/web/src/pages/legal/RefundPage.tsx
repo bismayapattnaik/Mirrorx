@@ -90,7 +90,7 @@ export default function RefundPage() {
             <h2 className="text-xl font-semibold text-gold mb-4">4. How to Request a Refund</h2>
             <p className="text-muted-foreground">To request a refund:</p>
             <ol className="list-decimal list-inside text-muted-foreground space-y-2 mt-4">
-              <li>Email support@facefit.co.in with subject &quot;Refund Request&quot;</li>
+              <li>Email support@mirrorx.co.in with subject &quot;Refund Request&quot;</li>
               <li>Include your registered email address</li>
               <li>Provide the transaction ID or order number</li>
               <li>Explain the reason for your refund request</li>
@@ -140,7 +140,7 @@ export default function RefundPage() {
               For refund-related questions or to submit a request:
             </p>
             <ul className="list-disc list-inside text-muted-foreground space-y-2 mt-4">
-              <li>Email: support@facefit.co.in</li>
+              <li>Email: support@mirrorx.co.in</li>
               <li>Response time: 3-5 business days</li>
             </ul>
           </section>

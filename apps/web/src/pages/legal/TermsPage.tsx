@@ -137,7 +137,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-gold mb-4">11. Contact</h2>
             <p className="text-muted-foreground">
-              For questions about these terms, contact us at legal@facefit.co.in
+              For questions about these terms, contact us at legal@mirrorx.co.in
             </p>
           </section>
         </div>

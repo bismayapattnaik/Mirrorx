@@ -432,7 +432,7 @@ export default function LandingPage() {
                     make integration seamless.
                   </p>
                   <Button asChild>
-                    <a href="mailto:business@facefit.co.in">
+                    <a href="mailto:business@mirrorx.co.in">
                       Contact Sales <ChevronRight className="w-4 h-4 ml-1" />
                     </a>
                   </Button>
@@ -498,8 +498,8 @@ export default function LandingPage() {
             <div>
               <h4 className="font-semibold mb-4">Contact</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>support@facefit.co.in</li>
-                <li>business@facefit.co.in</li>
+                <li>support@mirrorx.co.in</li>
+                <li>business@mirrorx.co.in</li>
               </ul>
             </div>
           </div>
