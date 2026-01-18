@@ -1,5 +1,7 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useEffect } from 'react';
+import { useAuthStore } from '@/store/auth-store';
 import {
   Sparkles,
   Camera,
@@ -138,6 +140,25 @@ const pricingTiers = [
 ];
 
 export default function LandingPage() {
+  const navigate = useNavigate();
+  const { isAuthenticated, isLoading } = useAuthStore();
+
+  // Redirect authenticated users to the app
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      navigate('/app/tryon', { replace: true });
+    }
+  }, [isAuthenticated, isLoading, navigate]);
+
+  // Show loading while checking auth (especially after OAuth redirect)
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-midnight flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-midnight">
       {/* Navigation */}
