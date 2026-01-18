@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import type { TryOnMode } from '@mirrorx/shared';
+import type { TryOnMode } from '@mrrx/shared';
 import * as fs from 'fs';
 import * as path from 'path';
 

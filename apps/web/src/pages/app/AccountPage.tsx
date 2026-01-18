@@ -29,7 +29,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/store/auth-store';
 import { authApi, ApiError } from '@/lib/api';
-import { updateProfileSchema, type UpdateProfileInput } from '@mirrorx/shared';
+import { updateProfileSchema, type UpdateProfileInput } from '@mrrx/shared';
 import { formatDate } from '@/lib/utils';
 
 export default function AccountPage() {

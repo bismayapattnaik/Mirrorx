@@ -22,10 +22,10 @@ COPY apps/api ./apps/api
 COPY packages/shared ./packages/shared
 
 # Build shared package
-RUN pnpm --filter @mirrorx/shared build
+RUN pnpm --filter @mrrx/shared build
 
 # Build API
-RUN pnpm --filter @mirrorx/api build
+RUN pnpm --filter @mrrx/api build
 
 # Production stage
 FROM node:20-alpine AS production

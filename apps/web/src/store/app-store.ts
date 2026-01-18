@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { WardrobeItem, TryOnResponse, TryOnMode } from '@mirrorx/shared';
+import type { WardrobeItem, TryOnResponse, TryOnMode } from '@mrrx/shared';
 
 interface TryOnState {
   selfieImage: string | null;

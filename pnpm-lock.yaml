@@ -32,7 +32,7 @@ importers:
       '@google/generative-ai':
         specifier: ^0.21.0
         version: 0.21.0
-      '@mirrorx/shared':
+      '@mrrx/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       axios:
@@ -129,7 +129,7 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.71.1(react@18.3.1))
-      '@mirrorx/shared':
+      '@mrrx/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@radix-ui/react-accordion':

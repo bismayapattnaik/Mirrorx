@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import { query } from '../db/index.js';
-import type { User } from '@mirrorx/shared';
+import type { User } from '@mrrx/shared';
 
 export interface AuthRequest extends Request {
   user?: User;
