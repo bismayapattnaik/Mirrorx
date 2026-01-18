@@ -1,0 +1,56 @@
+# MirrorX API Dockerfile
+FROM node:20-alpine AS base
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Install dependencies for sharp and other native modules
+RUN apk add --no-cache python3 make g++ vips-dev
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json pnpm-workspace.yaml ./
+COPY apps/api/package.json ./apps/api/
+COPY packages/shared/package.json ./packages/shared/
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source files
+COPY apps/api ./apps/api
+COPY packages/shared ./packages/shared
+
+# Build shared package
+RUN pnpm --filter @mirrorx/shared build
+
+# Build API
+RUN pnpm --filter @mirrorx/api build
+
+# Production stage
+FROM node:20-alpine AS production
+
+RUN npm install -g pnpm
+RUN apk add --no-cache vips
+
+WORKDIR /app
+
+# Copy built files
+COPY --from=base /app/package.json ./
+COPY --from=base /app/pnpm-workspace.yaml ./
+COPY --from=base /app/node_modules ./node_modules
+COPY --from=base /app/apps/api/package.json ./apps/api/
+COPY --from=base /app/apps/api/dist ./apps/api/dist
+COPY --from=base /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=base /app/packages/shared/package.json ./packages/shared/
+COPY --from=base /app/packages/shared/dist ./packages/shared/dist
+COPY --from=base /app/packages/shared/node_modules ./packages/shared/node_modules
+
+WORKDIR /app/apps/api
+
+ENV NODE_ENV=production
+ENV PORT=4000
+
+EXPOSE 4000
+
+CMD ["node", "dist/index.js"]
