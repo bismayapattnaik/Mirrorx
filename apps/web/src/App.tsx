@@ -11,6 +11,7 @@ import AppLayout from '@/layouts/AppLayout';
 import TryOnPage from '@/pages/app/TryOnPage';
 import WardrobePage from '@/pages/app/WardrobePage';
 import AccountPage from '@/pages/app/AccountPage';
+import AiTailorPage from '@/pages/app/AiTailorPage';
 import PricingPage from '@/pages/PricingPage';
 import PrivacyPage from '@/pages/legal/PrivacyPage';
 import TermsPage from '@/pages/legal/TermsPage';
@@ -101,6 +102,7 @@ export default function App() {
         >
           <Route index element={<Navigate to="/app/tryon" replace />} />
           <Route path="tryon" element={<TryOnPage />} />
+          <Route path="tailor" element={<AiTailorPage />} />
           <Route path="wardrobe" element={<WardrobePage />} />
           <Route path="account" element={<AccountPage />} />
         </Route>

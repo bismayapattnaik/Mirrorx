@@ -247,6 +247,155 @@ export const wardrobeApi = {
   },
 };
 
+// AI Tailor API
+export interface ProfileAnalysis {
+  skinTone: {
+    tone: string;
+    undertone: string;
+    description: string;
+  };
+  faceShape: string;
+  bodyType: string;
+  colorPalette: {
+    bestColors: string[];
+    avoidColors: string[];
+    neutrals: string[];
+    accentColors: string[];
+  };
+  stylePersonality: string;
+}
+
+export interface StyleRecommendation {
+  category: string;
+  title: string;
+  description: string;
+  colors: string[];
+  occasions: string[];
+  priceRange: string;
+  searchQuery: string;
+  buyLinks: Array<{ store: string; url: string }>;
+}
+
+export interface SizeRecommendation {
+  category: string;
+  recommendedSize: string;
+  measurements: {
+    chest?: string;
+    waist?: string;
+    hips?: string;
+    length?: string;
+  };
+  fitTips: string[];
+}
+
+export const tailorApi = {
+  analyzeProfile: async (
+    photo: string,
+    gender: 'male' | 'female'
+  ): Promise<{ success: boolean; profile: ProfileAnalysis }> => {
+    return fetchWithAuth('/tailor/analyze-profile', {
+      method: 'POST',
+      body: JSON.stringify({ photo, gender }),
+    });
+  },
+
+  getProfile: async (): Promise<{
+    success: boolean;
+    profile: ProfileAnalysis;
+    gender: string;
+  }> => {
+    return fetchWithAuth('/tailor/profile');
+  },
+
+  getRecommendations: async (
+    occasion?: string,
+    season?: string
+  ): Promise<{
+    success: boolean;
+    profile: ProfileAnalysis;
+    recommendations: StyleRecommendation[];
+  }> => {
+    return fetchWithAuth('/tailor/recommendations', {
+      method: 'POST',
+      body: JSON.stringify({ occasion, season }),
+    });
+  },
+
+  getSizeRecommendation: async (
+    photo: string,
+    productCategory: string,
+    height?: number,
+    weight?: number
+  ): Promise<{
+    success: boolean;
+    sizeRecommendation: SizeRecommendation;
+    basedOnPastFeedback: boolean;
+  }> => {
+    return fetchWithAuth('/tailor/size-recommendation', {
+      method: 'POST',
+      body: JSON.stringify({ photo, productCategory, height, weight }),
+    });
+  },
+
+  submitSizeFeedback: async (
+    productCategory: string,
+    sizeOrdered: string,
+    fitFeedback: 'too_tight' | 'too_loose' | 'perfect' | 'slightly_tight' | 'slightly_loose'
+  ): Promise<{ success: boolean; message: string }> => {
+    return fetchWithAuth('/tailor/size-feedback', {
+      method: 'POST',
+      body: JSON.stringify({ productCategory, sizeOrdered, fitFeedback }),
+    });
+  },
+
+  getComplementary: async (
+    clothingImage: string,
+    clothingType: 'topwear' | 'bottomwear' | 'footwear' | 'accessory'
+  ): Promise<{
+    success: boolean;
+    itemAnalysis: string;
+    complementaryItems: StyleRecommendation[];
+    fullOutfitIdea: string;
+    sizeSuggestion?: string;
+  }> => {
+    return fetchWithAuth('/tailor/complementary', {
+      method: 'POST',
+      body: JSON.stringify({ clothingImage, clothingType }),
+    });
+  },
+
+  getTrending: async (
+    occasion?: string,
+    season?: string
+  ): Promise<{
+    success: boolean;
+    trends: Array<{
+      name: string;
+      description: string;
+      keyPieces: string[];
+      celebrities: string[];
+      howToWear: string;
+    }>;
+    recommendations: StyleRecommendation[];
+  }> => {
+    const params = new URLSearchParams();
+    if (occasion) params.append('occasion', occasion);
+    if (season) params.append('season', season);
+    const query = params.toString();
+    return fetchWithAuth(`/tailor/trending${query ? `?${query}` : ''}`);
+  },
+
+  updateMeasurements: async (
+    height?: number,
+    weight?: number
+  ): Promise<{ success: boolean; message: string }> => {
+    return fetchWithAuth('/tailor/update-measurements', {
+      method: 'POST',
+      body: JSON.stringify({ height, weight }),
+    });
+  },
+};
+
 // Health check
 export const healthApi = {
   check: async (): Promise<{ status: string; timestamp: string }> => {
