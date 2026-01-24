@@ -10,6 +10,7 @@ import {
   LogOut,
   CreditCard,
   ChevronDown,
+  Wand2,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { path: '/app/tryon', label: 'Try On', icon: Sparkles },
+  { path: '/app/tailor', label: 'AI Tailor', icon: Wand2 },
   { path: '/app/wardrobe', label: 'Wardrobe', icon: Shirt },
   { path: '/app/account', label: 'Account', icon: User },
 ];

@@ -18,6 +18,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   User,
+  Ruler,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,7 +29,7 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { useAppStore } from '@/store/app-store';
 import { useAuthStore } from '@/store/auth-store';
-import { tryOnApi, productApi, wardrobeApi, creditsApi } from '@/lib/api';
+import { tryOnApi, productApi, wardrobeApi, creditsApi, tailorApi, StyleRecommendation, SizeRecommendation } from '@/lib/api';
 import { cn, fileToBase64, isValidImageFile } from '@/lib/utils';
 
 export default function TryOnPage() {
@@ -66,6 +67,9 @@ export default function TryOnPage() {
       stores: Array<{ name: string; url: string }>;
     }>;
   } | null>(null);
+  const [complementaryItems, setComplementaryItems] = useState<StyleRecommendation[]>([]);
+  const [sizeRecommendation, setSizeRecommendation] = useState<SizeRecommendation | null>(null);
+  const [isLoadingComplementary, setIsLoadingComplementary] = useState(false);
 
   // Fetch credits on mount
   useState(() => {
@@ -195,6 +199,24 @@ export default function TryOnPage() {
         setOutfitSuggestions((result as any).outfit_suggestions);
       } else {
         setOutfitSuggestions(null);
+      }
+
+      // Fetch complementary items for the product (top wear -> bottom wear suggestions)
+      try {
+        setIsLoadingComplementary(true);
+        const compResult = await tailorApi.getComplementary(tryOn.productImage, 'topwear');
+        setComplementaryItems(compResult.complementaryItems || []);
+
+        // Also get size recommendation
+        const sizeResult = await tailorApi.getSizeRecommendation(
+          tryOn.selfieImage,
+          'topwear'
+        );
+        setSizeRecommendation(sizeResult.sizeRecommendation);
+      } catch {
+        // Non-critical, don't show error
+      } finally {
+        setIsLoadingComplementary(false);
       }
 
       // Refresh credits
@@ -616,6 +638,8 @@ export default function TryOnPage() {
                       resetTryOn();
                       setOutfitSuggestions(null);
                       setFeedbackNotes('');
+                      setComplementaryItems([]);
+                      setSizeRecommendation(null);
                     }}>
                       <RefreshCw className="w-4 h-4 mr-2" />
                       New
@@ -658,6 +682,86 @@ export default function TryOnPage() {
                         <Check className="w-4 h-4" />
                         Thank you for your feedback!
                       </p>
+                    </div>
+                  )}
+
+                  {/* Size Recommendation */}
+                  {sizeRecommendation && (
+                    <div className="mt-4 p-4 bg-charcoal rounded-xl">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-gold flex items-center gap-2">
+                          <Ruler className="w-4 h-4" />
+                          Recommended Size
+                        </h4>
+                        <span className="text-2xl font-bold text-gold">
+                          {sizeRecommendation.recommendedSize}
+                        </span>
+                      </div>
+                      {sizeRecommendation.fitTips && sizeRecommendation.fitTips.length > 0 && (
+                        <ul className="text-xs text-muted-foreground space-y-1">
+                          {sizeRecommendation.fitTips.slice(0, 2).map((tip, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <Check className="w-3 h-3 text-gold mt-0.5 shrink-0" />
+                              {tip}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Complementary Items - Bottom Wear Suggestions */}
+                  {complementaryItems.length > 0 && (
+                    <div className="mt-4 border-t border-gold/20 pt-4">
+                      <h4 className="font-semibold text-gold flex items-center gap-2 mb-3">
+                        <Shirt className="w-4 h-4" />
+                        Complete Your Look
+                      </h4>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Based on your top wear, we suggest these matching items:
+                      </p>
+                      <div className="space-y-2">
+                        {complementaryItems.slice(0, 3).map((item, index) => (
+                          <div
+                            key={index}
+                            className="bg-charcoal rounded-lg p-3"
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <span className="text-xs text-gold">{item.category}</span>
+                                <p className="font-medium text-sm">{item.title}</p>
+                              </div>
+                              <span className="text-xs text-gold">{item.priceRange}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                              {item.description}
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {item.buyLinks?.slice(0, 3).map((link, i) => (
+                                <a
+                                  key={i}
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-gold/10 hover:bg-gold/20 rounded text-xs text-gold transition-colors"
+                                >
+                                  {link.store}
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {isLoadingComplementary && (
+                    <div className="mt-4 p-4 bg-charcoal rounded-xl">
+                      <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">Finding matching items...</span>
+                      </div>
                     </div>
                   )}
 
