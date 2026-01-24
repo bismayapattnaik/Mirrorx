@@ -111,7 +111,7 @@ export async function generateTryOnImage(
           ],
         },
       ],
-      generationConfig: {
+      config: {
         responseModalities: ['IMAGE', 'TEXT'],
       },
     });
