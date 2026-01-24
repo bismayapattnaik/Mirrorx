@@ -1,13 +1,36 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
-    <linearGradient id="gold-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#D4AF37"/>
-      <stop offset="100%" style="stop-color:#B8941F"/>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#D4AF37;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#C5A028;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1E3A5F;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2D5A87;stop-opacity:1" />
     </linearGradient>
   </defs>
-  <rect width="100" height="100" rx="20" fill="url(#gold-gradient)"/>
-  <path d="M50 25 L65 45 L50 55 L35 45 Z" fill="white" opacity="0.9"/>
-  <path d="M50 55 L65 45 L65 65 L50 75 Z" fill="white" opacity="0.7"/>
-  <path d="M50 55 L35 45 L35 65 L50 75 Z" fill="white" opacity="0.5"/>
-  <circle cx="50" cy="35" r="5" fill="white"/>
+
+  <!-- Dark background -->
+  <rect width="64" height="64" rx="12" fill="#0A0A0F"/>
+
+  <!-- Hanger hook -->
+  <path d="M32 8 C32 8 36 8 36 12 C36 15 33 16 33 16"
+        stroke="#B8B8C0" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Hanger body -->
+  <path d="M18 24 L32 16 L46 24"
+        stroke="#B8B8C0" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Circle frame -->
+  <circle cx="32" cy="38" r="16" stroke="#B8B8C0" stroke-width="2" fill="none"/>
+
+  <!-- X shape - blue ribbon -->
+  <path d="M22 28 L42 48" stroke="url(#blueGrad)" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- X shape - gold ribbon -->
+  <path d="M42 28 L22 48" stroke="url(#goldGrad)" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Gold mesh pattern overlay -->
+  <path d="M38 32 L26 44" stroke="#D4AF37" stroke-width="1" stroke-opacity="0.5" stroke-dasharray="2 2"/>
+  <path d="M40 34 L28 46" stroke="#D4AF37" stroke-width="1" stroke-opacity="0.5" stroke-dasharray="2 2"/>
 </svg>

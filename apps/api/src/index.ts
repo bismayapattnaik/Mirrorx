@@ -22,6 +22,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// Trust proxy - required for Render, Railway, and other cloud platforms
+// This allows express-rate-limit to get the correct client IP
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 

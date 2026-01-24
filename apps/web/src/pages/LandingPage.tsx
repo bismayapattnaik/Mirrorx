@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { Logo } from '@/components/Logo';
 
 // Animation variants
 const fadeInUp = {
@@ -164,11 +165,8 @@ export default function LandingPage() {
       {/* Navigation */}
       <nav className="glass sticky top-0 z-50">
         <div className="container max-w-container mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gold-gradient rounded-lg flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-orbitron text-xl font-bold text-gold">MirrorX</span>
+          <Link to="/">
+            <Logo size="md" />
           </Link>
 
           <div className="hidden md:flex items-center gap-6">

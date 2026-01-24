@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { Logo } from '@/components/Logo';
 
 const navItems = [
   { path: '/app/tryon', label: 'Try On', icon: Sparkles },
@@ -46,11 +47,8 @@ export default function AppLayout() {
       {/* Desktop Header */}
       <header className="hidden md:flex glass sticky top-0 z-50 h-16">
         <div className="container max-w-container mx-auto px-6 flex items-center justify-between">
-          <NavLink to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gold-gradient rounded-lg flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-orbitron text-xl font-bold text-gold">MirrorX</span>
+          <NavLink to="/">
+            <Logo size="md" />
           </NavLink>
 
           <nav className="flex items-center gap-1">
@@ -113,11 +111,8 @@ export default function AppLayout() {
       {/* Mobile Header */}
       <header className="md:hidden glass sticky top-0 z-50 h-14">
         <div className="px-4 h-full flex items-center justify-between">
-          <NavLink to="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-gold-gradient rounded-lg flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-orbitron text-lg font-bold text-gold">MirrorX</span>
+          <NavLink to="/">
+            <Logo size="sm" />
           </NavLink>
 
           <Button
