@@ -32,3 +32,6 @@ vite.config.d.ts
 *.njsproj
 *.sln
 *.sw?
+
+# Turborepo cache
+.turbo/
