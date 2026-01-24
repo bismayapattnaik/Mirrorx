@@ -89,12 +89,7 @@ app.use('/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Apply rate limiting
-app.use('/auth', authLimiter);
-app.use('/tryon', tryOnLimiter);
-app.use(generalLimiter);
-
-// Health check
+// Health check - BEFORE rate limiting so Render health checks always work
 app.get('/health', async (_req, res) => {
   const dbConnected = await checkConnection();
   res.json({
@@ -104,6 +99,11 @@ app.get('/health', async (_req, res) => {
     version: process.env.npm_package_version || '1.0.0',
   });
 });
+
+// Apply rate limiting (after health check)
+app.use('/auth', authLimiter);
+app.use('/tryon', tryOnLimiter);
+app.use(generalLimiter);
 
 // Routes
 app.use('/auth', authRoutes);
