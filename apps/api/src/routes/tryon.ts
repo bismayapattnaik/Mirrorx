@@ -4,8 +4,7 @@ import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { query, withTransaction } from '../db/index.js';
-import { runVirtualTryOn } from '../services/replicate-tryon.js';
-import { getStyleRecommendations } from '../services/gemini.js';
+import { generateTryOnImage, getStyleRecommendations } from '../services/gemini.js';
 import { DAILY_FREE_TRYONS } from '@mrrx/shared';
 import type { TryOnJob, TryOnJobStatus } from '@mrrx/shared';
 
@@ -145,20 +144,10 @@ router.post(
         [jobId, userId, mode, selfieBase64, productBase64 || null, product_url || null]
       );
 
-      // Map mode to category for Replicate model
-      const categoryMap: Record<string, 'upper_body' | 'lower_body' | 'dresses'> = {
-        'PART': 'upper_body',
-        'FULL_FIT': 'dresses',
-        'upper': 'upper_body',
-        'lower': 'lower_body',
-        'dress': 'dresses',
-      };
-      const category = categoryMap[mode] || 'upper_body';
-
-      // Generate try-on image using Replicate IDM-VTON (100% face preservation)
+      // Generate try-on image using Gemini with enhanced face preservation
       let resultImage: string;
       try {
-        resultImage = await runVirtualTryOn(selfieBase64, productBase64 || '', category);
+        resultImage = await generateTryOnImage(selfieBase64, productBase64 || '', mode, validGender, feedbackContext);
       } catch (genError) {
         // Update job as failed
         await query(
