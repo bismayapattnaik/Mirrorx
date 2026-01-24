@@ -1,6 +1,6 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import {
   Sparkles,
@@ -12,7 +12,6 @@ import {
   ArrowRight,
   Check,
   ChevronRight,
-  Palette,
   Ruler,
   TrendingUp,
   Heart,
@@ -23,7 +22,6 @@ import {
   Target,
   Dna,
   ShoppingBag,
-  Eye,
   Play,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -302,7 +300,6 @@ const pricingTiers = [
 ];
 
 export default function LandingPage() {
-  const navigate = useNavigate();
   const { isAuthenticated, isLoading } = useAuthStore();
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
