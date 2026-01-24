@@ -4,7 +4,8 @@ import sharp from 'sharp';
 import { v4 as uuidv4 } from 'uuid';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { query, withTransaction } from '../db/index.js';
-import { generateTryOnImage, getStyleRecommendations } from '../services/gemini.js';
+import { runVirtualTryOn } from '../services/replicate-tryon.js';
+import { getStyleRecommendations } from '../services/gemini.js';
 import { DAILY_FREE_TRYONS } from '@mrrx/shared';
 import type { TryOnJob, TryOnJobStatus } from '@mrrx/shared';
 
@@ -131,6 +132,10 @@ router.post(
 
       if (productFile) {
         productBase64 = await processImage(productFile.buffer);
+      } else if (product_url) {
+        // If product_url is provided, we'll pass it directly to the model
+        // Replicate can accept URLs directly
+        productBase64 = product_url;
       }
 
       // Create job record
@@ -140,10 +145,20 @@ router.post(
         [jobId, userId, mode, selfieBase64, productBase64 || null, product_url || null]
       );
 
-      // Generate try-on image with gender and feedback context
+      // Map mode to category for Replicate model
+      const categoryMap: Record<string, 'upper_body' | 'lower_body' | 'dresses'> = {
+        'PART': 'upper_body',
+        'FULL_FIT': 'dresses',
+        'upper': 'upper_body',
+        'lower': 'lower_body',
+        'dress': 'dresses',
+      };
+      const category = categoryMap[mode] || 'upper_body';
+
+      // Generate try-on image using Replicate IDM-VTON (100% face preservation)
       let resultImage: string;
       try {
-        resultImage = await generateTryOnImage(selfieBase64, productBase64 || '', mode, validGender, feedbackContext);
+        resultImage = await runVirtualTryOn(selfieBase64, productBase64 || '', category);
       } catch (genError) {
         // Update job as failed
         await query(
@@ -335,10 +350,9 @@ router.get('/feedback/stats', authenticate, async (req: AuthRequest, res: Respon
     const userId = req.userId;
 
     const result = await query<{
-      total_tryons: number;
+      total_feedback: number;
       satisfied_count: number;
       unsatisfied_count: number;
-      common_issues: string[];
     }>(
       `SELECT
         COUNT(DISTINCT tf.job_id) as total_feedback,
