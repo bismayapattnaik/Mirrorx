@@ -4,65 +4,138 @@ import type { TryOnMode } from '@mrrx/shared';
 // Initialize Gemini client
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
-// Model - Gemini 2.0 Flash with native image generation
-// The model for native multimodal image generation
-const IMAGE_MODEL = 'gemini-2.0-flash-exp';
+// Model - Gemini 3 Pro Image Preview (Nano Banana Pro)
+// State-of-the-art image generation with advanced reasoning ("Thinking")
+const IMAGE_MODEL = 'gemini-3-pro-image-preview';
 const TEXT_MODEL = 'gemini-2.0-flash';
 
 type Gender = 'male' | 'female';
 
 /**
- * Ultra-precise face preservation prompt
- * Emphasizes COPYING the exact face, not generating a similar one
+ * System instruction for hyper-accurate virtual try-on
+ * Strict identity preservation with zero face changes
  */
-const buildUltraPrecisePrompt = (gender: Gender, mode: TryOnMode): string => {
+const SYSTEM_INSTRUCTION = `You are a hyper-accurate virtual try-on engine.
+
+Your sole task is to generate a realistic preview of how a selected clothing item will look on the user, while preserving the user's identity with absolute fidelity.
+
+You must treat the user's face and body identity as immutable.
+No creative interpretation is allowed on facial features or identity.
+
+IMAGE ROLE DEFINITION:
+
+Image 1: This is the user's reference image.
+It defines the user's exact identity, including:
+- Face structure
+- Skin tone
+- Facial features
+- Hairline
+- Hair texture
+- Facial expression
+- Body proportions (as visible)
+
+Image 2: This is the clothing reference image.
+It defines ONLY the clothing:
+- Fabric
+- Color
+- Texture
+- Stitching
+- Fit
+- Sleeves
+- Length
+- Patterns
+
+STRICT IDENTITY PRESERVATION RULES (NON-NEGOTIABLE):
+
+- The output face must be a 100% replica of Image 1
+- Do NOT alter:
+  - Face shape
+  - Jawline
+  - Nose size or shape
+  - Eye size, spacing, or angle
+  - Eyebrows
+  - Lips
+  - Skin tone
+  - Facial symmetry
+  - Age
+  - Gender expression
+
+- Do NOT beautify, stylize, or enhance the face
+- Do NOT apply filters, smoothing, or artistic changes
+- Do NOT modify hairstyle unless hidden naturally by the clothing
+- Do NOT replace or hallucinate facial details
+
+The face is a LOCKED ASSET - treat it as immutable.
+
+CLOTHING APPLICATION RULES:
+
+- Apply ONLY the clothing from Image 2 onto the user in Image 1
+- Maintain:
+  - Original clothing color
+  - Fabric texture
+  - Logos, prints, embroidery
+  - Wrinkles and folds
+  - Fit style (loose, slim, oversized)
+
+- The clothing must follow the user's body posture naturally
+- Adjust folds and drape realistically based on the user's pose
+- Respect lighting consistency with Image 1
+
+REALISM REQUIREMENTS:
+
+- Photorealistic output
+- Natural shadows and lighting
+- Correct depth and perspective
+- Seamless blending between skin and clothing
+- No visible cut lines, artifacts, or warping
+- The output should look like a real photo taken by a camera
+
+FAILURE CONDITIONS:
+
+If the clothing from Image 2 cannot be realistically applied due to pose, angle, or occlusion:
+- Preserve the user's identity fully
+- Apply the clothing as accurately as possible without distortion
+- Never compromise facial accuracy to fit the clothing`;
+
+/**
+ * Build the try-on prompt based on mode
+ */
+const buildTryOnPrompt = (gender: Gender, mode: TryOnMode): string => {
   const person = gender === 'female' ? 'woman' : 'man';
   const pronoun = gender === 'female' ? 'her' : 'his';
 
-  return `CRITICAL TASK: Photo-realistic virtual try-on with EXACT face preservation.
-
-You MUST create an image where the EXACT SAME PERSON from the first photo is wearing the clothing from the second photo.
-
-🚨 ABSOLUTE REQUIREMENT - FACE IDENTITY:
-The face in your output MUST be the EXACT face from Photo 1. Not similar - IDENTICAL.
-- Copy every facial feature EXACTLY: eyes, nose, lips, eyebrows, face shape, skin texture
-- Copy exact skin tone, any moles, birthmarks, freckles in their exact positions
-- Copy exact hair color, style, and texture
-- The person's friends and family MUST be able to recognize them instantly
-- If the face looks different AT ALL, you have FAILED the task
-
-Think of it as: Take Photo 1's face and body, dress them in Photo 2's clothes.
-
-📸 PHOTO 1 (FIRST IMAGE): The ${person} whose EXACT face and body must appear in output
-📸 PHOTO 2 (SECOND IMAGE): The clothing/outfit to put on ${pronoun}
-
-${mode === 'FULL_FIT' ? `
-FULL OUTFIT MODE:
-- Use the garment from Photo 2 as the main piece
+  const modeInstructions = mode === 'FULL_FIT'
+    ? `FULL OUTFIT MODE:
+- Use the garment from Image 2 as the main piece
 - Create a complete coordinated outfit
 - Add matching bottom wear, accessories, footwear
-- Full body shot showing the complete look
-` : `
-SINGLE ITEM MODE:
-- Place ONLY the garment from Photo 2 on the person
+- Full body shot showing the complete look`
+    : `SINGLE ITEM MODE:
+- Place ONLY the garment from Image 2 on the ${person}
 - Keep the rest of ${pronoun} outfit as appropriate
-- Focus on how this specific garment fits ${pronoun}
-`}
+- Focus on how this specific garment fits ${pronoun}`;
 
-OUTPUT REQUIREMENTS:
-- Ultra high quality, 4K resolution feel
-- Professional fashion photography lighting
-- Sharp details on face and clothing
-- Realistic fabric texture and draping
-- Natural body proportions matching Photo 1
-- The face MUST pass identity verification - same person, not a look-alike
+  return `TASK: Virtual Try-On
 
-Generate the try-on image now. Remember: The face must be PIXEL-PERFECT identical to Photo 1.`;
+Image 1 is the ${person}'s identity reference - this face must be preserved with 100% accuracy.
+Image 2 is the clothing reference - apply this clothing onto the person.
+
+${modeInstructions}
+
+CRITICAL REQUIREMENTS:
+- The output face must be IDENTICAL to Image 1 - not similar, IDENTICAL
+- Every facial feature must match exactly: eyes, nose, lips, skin tone, face shape
+- The person's friends and family must be able to recognize them instantly
+- Apply the clothing naturally with realistic draping and shadows
+- Professional fashion photography quality
+- Photorealistic result
+
+Generate the try-on image now.`;
 };
 
 /**
- * Generate virtual try-on image using Gemini
- * Maximum quality settings, pure Gemini - no face swap
+ * Generate virtual try-on image using Gemini 3 Pro Image Preview
+ * Maximum quality with strict identity preservation
  */
 export async function generateTryOnImage(
   selfieBase64: string,
@@ -76,13 +149,12 @@ export async function generateTryOnImage(
     const cleanSelfie = selfieBase64.replace(/^data:image\/\w+;base64,/, '');
     const cleanProduct = productBase64.replace(/^data:image\/\w+;base64,/, '');
 
-    const person = gender === 'female' ? 'woman' : 'man';
-    const prompt = buildUltraPrecisePrompt(gender, mode);
+    const prompt = buildTryOnPrompt(gender, mode);
 
-    console.log('Generating try-on with Gemini (ultra-precise face mode)...');
+    console.log('Generating try-on with Gemini 3 Pro Image Preview (strict identity preservation)...');
 
-    // Generate with maximum quality settings
-    // Use the correct Gemini API format for image generation
+    // Generate with Gemini 3 Pro Image Preview
+    // Using the correct API format with system instruction
     const response = await client.models.generateContent({
       model: IMAGE_MODEL,
       contents: [
@@ -90,7 +162,7 @@ export async function generateTryOnImage(
           role: 'user',
           parts: [
             {
-              text: `🎯 PHOTO 1 - THIS IS THE PERSON (${person.toUpperCase()}) - COPY THIS EXACT FACE TO OUTPUT:`
+              text: '📷 IMAGE 1 - USER IDENTITY REFERENCE (preserve this face exactly):'
             },
             {
               inlineData: {
@@ -99,7 +171,7 @@ export async function generateTryOnImage(
               },
             },
             {
-              text: `👗 PHOTO 2 - THIS IS THE CLOTHING - PUT THIS ON THE PERSON FROM PHOTO 1:`
+              text: '👗 IMAGE 2 - CLOTHING REFERENCE (apply this clothing):'
             },
             {
               inlineData: {
@@ -112,26 +184,33 @@ export async function generateTryOnImage(
         },
       ],
       config: {
-        responseModalities: ['IMAGE', 'TEXT'],
+        systemInstruction: SYSTEM_INSTRUCTION,
+        responseModalities: ['TEXT', 'IMAGE'],
+        // High resolution output
+        imageConfig: {
+          aspectRatio: '3:4', // Portrait orientation for fashion
+          imageSize: '2K',    // High quality output
+        },
       },
     });
 
-    // Extract high-quality image from response
+    // Extract image from response
     if (response.candidates && response.candidates.length > 0) {
       const parts = response.candidates[0].content?.parts || [];
 
       for (const part of parts) {
+        // Check for inline image data
         if (part.inlineData?.mimeType?.startsWith('image/')) {
           const mimeType = part.inlineData.mimeType;
           const data = part.inlineData.data;
-          console.log('Try-on image generated successfully');
+          console.log('Try-on image generated successfully with Gemini 3 Pro');
           return `data:${mimeType};base64,${data}`;
         }
       }
 
       // Log any text response for debugging
       for (const part of parts) {
-        if (part.text) {
+        if (part.text && !part.thought) {
           console.log('Model text response:', part.text.substring(0, 500));
         }
       }
