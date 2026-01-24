@@ -4,8 +4,9 @@ import type { TryOnMode } from '@mrrx/shared';
 // Initialize Gemini client
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
-// Model - Gemini 2.0 Flash for image generation (Nano Banana 3 Pro)
-const IMAGE_MODEL = 'gemini-2.0-flash-exp-image-generation';
+// Model - Gemini 2.0 Flash with native image generation
+// The model for native multimodal image generation
+const IMAGE_MODEL = 'gemini-2.0-flash-exp';
 const TEXT_MODEL = 'gemini-2.0-flash';
 
 type Gender = 'male' | 'female';
@@ -81,6 +82,7 @@ export async function generateTryOnImage(
     console.log('Generating try-on with Gemini (ultra-precise face mode)...');
 
     // Generate with maximum quality settings
+    // Use the correct Gemini API format for image generation
     const response = await client.models.generateContent({
       model: IMAGE_MODEL,
       contents: [
@@ -109,8 +111,8 @@ export async function generateTryOnImage(
           ],
         },
       ],
-      config: {
-        responseModalities: ['IMAGE'],
+      generationConfig: {
+        responseModalities: ['IMAGE', 'TEXT'],
       },
     });
 
