@@ -112,37 +112,60 @@ USER'S STYLE DNA:
     ? `Preferred colors: ${colorPreferences.join(', ')}`
     : 'No specific color preference';
 
-  const prompt = `You are an expert Indian fashion stylist. Create 4-5 complete outfit looks for a ${genderWord} for the occasion: ${occasionNames[occasion] || occasion}.
+  // Add randomness for variety
+  const styleVariations = [
+    'contemporary fusion', 'classic traditional', 'street style chic',
+    'minimalist elegance', 'bohemian free-spirit', 'power dressing',
+    'romantic feminine', 'edgy modern', 'vintage inspired', 'sporty casual'
+  ];
+  const randomStyle = styleVariations[Math.floor(Math.random() * styleVariations.length)];
+  const timestamp = Date.now();
+
+  const prompt = `You are an expert Indian fashion stylist creating UNIQUE outfit recommendations. Generate 5 COMPLETELY DIFFERENT outfit looks for a ${genderWord} for: ${occasionNames[occasion] || occasion}.
+
+CRITICAL RULES - FOLLOW STRICTLY:
+1. Each look MUST be distinctly different in style, colors, and aesthetic
+2. DO NOT repeat any item across different looks
+3. Use diverse brands - mix premium and affordable options
+4. Include current 2024-2025 fashion trends
+5. Vary the vibe: one ${randomStyle}, others different styles
 
 REQUIREMENTS:
-- Budget range: ₹${budgetMin.toLocaleString()} - ₹${budgetMax.toLocaleString()}
-- Style preference: ${styleLevel}
+- Budget: ₹${budgetMin.toLocaleString()} - ₹${budgetMax.toLocaleString()}
+- Style level: ${styleLevel}
 - ${colorContext}
 ${styleDNAContext}
 
-For each look, provide:
-1. A catchy look name (e.g., "Power Player", "Ethnic Elegance")
-2. Description (2-3 sentences)
-3. Complete items list with:
-   - type (top/bottom/footwear/accessory/outerwear)
-   - specific item name
-   - brand suggestion (Indian brands preferred: FabIndia, Manyavar, W, AND, Allen Solly, Van Heusen, Peter England, Global Desi, Biba, etc.)
-   - price estimate in INR
-   - search query for e-commerce
-4. Why this outfit works for the occasion
-5. Total estimated price
+DIVERSITY REQUIREMENTS:
+- Look 1: Classic/Traditional approach
+- Look 2: Modern/Contemporary twist
+- Look 3: Trendy/Fashion-forward
+- Look 4: Budget-friendly but stylish
+- Look 5: Premium/Designer-inspired
 
-Focus on items available on Indian e-commerce (Myntra, Ajio, Amazon India, Flipkart).
+For EACH look provide:
+1. Unique catchy name (be creative, no generic names)
+2. Vivid description (2-3 sentences capturing the vibe)
+3. 4-5 items with:
+   - type: top/bottom/footwear/accessory/outerwear
+   - title: SPECIFIC product name (e.g., "Printed Rayon A-Line Kurta" not just "Kurta")
+   - brand: Mix brands like Zara, H&M, FabIndia, Manyavar, W, AND, Biba, Aurelia, Global Desi, Libas, Anouk, Allen Solly, Van Heusen, Rare Rabbit, Jack & Jones, Only, Vero Moda
+   - price: Realistic INR price
+   - search_query: Specific search term for finding this exact item
+4. Compelling rationale for why this works
+5. Palette match score (70-95 based on color harmony)
+
+Timestamp for uniqueness: ${timestamp}
 
 Return ONLY valid JSON array:
 [{
-  "name": "Look Name",
-  "description": "2-3 sentence description",
+  "name": "Unique Creative Name",
+  "description": "Vivid 2-3 sentence description",
   "items": [
-    {"type": "top", "title": "Specific Item Name", "brand": "Brand", "price": 1999, "search_query": "search term"}
+    {"type": "top", "title": "Specific Detailed Item Name", "brand": "Brand", "price": 1999, "search_query": "detailed search term"}
   ],
   "total_price": 5999,
-  "rationale": "Why this works for the occasion",
+  "rationale": "Why this specific combination works",
   "palette_match": 85
 }]`;
 
