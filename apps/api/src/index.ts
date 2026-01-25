@@ -15,8 +15,7 @@ import paymentsRoutes from './routes/payments.js';
 import wardrobeRoutes from './routes/wardrobe.js';
 import merchantRoutes from './routes/merchant.js';
 import webhookRoutes from './routes/webhooks.js';
-import tailorRoutes from './routes/tailor.js';
-import occasionRoutes from './routes/occasion.js';
+import feedRoutes from './routes/feed.js';
 
 dotenv.config();
 
@@ -116,9 +115,7 @@ app.use('/credits', creditsRoutes);
 app.use('/payments', paymentsRoutes);
 app.use('/wardrobe', wardrobeRoutes);
 app.use('/merchant', merchantRoutes);
-app.use('/tailor', tailorRoutes);
-// Premium Features Routes
-app.use('/occasion-stylist', occasionRoutes);
+app.use('/feed', feedRoutes);
 
 // 404 handler
 app.use((_req, res) => {

@@ -299,152 +299,99 @@ export const wardrobeApi = {
   },
 };
 
-// AI Tailor API
-export interface ProfileAnalysis {
-  skinTone: {
-    tone: string;
-    undertone: string;
-    description: string;
-  };
-  faceShape: string;
-  bodyType: string;
-  colorPalette: {
-    bestColors: string[];
-    avoidColors: string[];
-    neutrals: string[];
-    accentColors: string[];
-  };
-  stylePersonality: string;
+// Feed API - Social Try-On Sharing
+export interface FeedPost {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_avatar: string | null;
+  tryon_image_url: string;
+  product_url: string | null;
+  product_title: string | null;
+  caption: string | null;
+  is_poll: boolean;
+  poll_options: string[] | null;
+  votes: Record<string, number>;
+  total_votes: number;
+  comments_count: number;
+  created_at: string;
+  has_voted: boolean;
+  user_vote: string | null;
 }
 
-export interface StyleRecommendation {
-  category: string;
-  title: string;
-  description: string;
-  colors: string[];
-  occasions: string[];
-  priceRange: string;
-  searchQuery: string;
-  buyLinks: Array<{ store: string; url: string }>;
+export interface FeedComment {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_avatar: string | null;
+  content: string;
+  created_at: string;
 }
 
-export interface SizeRecommendation {
-  category: string;
-  recommendedSize: string;
-  measurements: {
-    chest?: string;
-    waist?: string;
-    hips?: string;
-    length?: string;
-  };
-  fitTips: string[];
-}
-
-export const tailorApi = {
-  analyzeProfile: async (
-    photo: string,
-    gender: 'male' | 'female'
-  ): Promise<{ success: boolean; profile: ProfileAnalysis }> => {
-    return fetchWithAuth('/tailor/analyze-profile', {
-      method: 'POST',
-      body: JSON.stringify({ photo, gender }),
-    });
-  },
-
-  getProfile: async (): Promise<{
-    success: boolean;
-    profile: ProfileAnalysis;
-    gender: string;
+export const feedApi = {
+  // Get feed posts
+  getFeed: async (params?: {
+    page?: number;
+    limit?: number;
+    filter?: 'all' | 'friends' | 'trending' | 'polls';
+  }): Promise<{
+    posts: FeedPost[];
+    total: number;
+    page: number;
+    has_more: boolean;
   }> => {
-    return fetchWithAuth('/tailor/profile');
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.append('page', String(params.page));
+    if (params?.limit) searchParams.append('limit', String(params.limit));
+    if (params?.filter) searchParams.append('filter', params.filter);
+    const query = searchParams.toString();
+    return fetchWithAuth(`/feed${query ? `?${query}` : ''}`);
   },
 
-  getRecommendations: async (
-    occasion?: string,
-    season?: string
-  ): Promise<{
-    success: boolean;
-    profile: ProfileAnalysis;
-    recommendations: StyleRecommendation[];
-  }> => {
-    return fetchWithAuth('/tailor/recommendations', {
+  // Create a new post
+  createPost: async (data: {
+    tryon_job_id: string;
+    caption?: string;
+    is_poll?: boolean;
+    poll_question?: string;
+    poll_options?: string[];
+    visibility?: 'public' | 'friends' | 'private';
+  }): Promise<{ success: boolean; post: FeedPost }> => {
+    return fetchWithAuth('/feed', {
       method: 'POST',
-      body: JSON.stringify({ occasion, season }),
+      body: JSON.stringify(data),
     });
   },
 
-  getSizeRecommendation: async (
-    photo: string,
-    productCategory: string,
-    height?: number,
-    weight?: number
-  ): Promise<{
-    success: boolean;
-    sizeRecommendation: SizeRecommendation;
-    basedOnPastFeedback: boolean;
-  }> => {
-    return fetchWithAuth('/tailor/size-recommendation', {
+  // Vote on a poll
+  vote: async (postId: string, option: string): Promise<{ success: boolean; votes: Record<string, number> }> => {
+    return fetchWithAuth(`/feed/${postId}/vote`, {
       method: 'POST',
-      body: JSON.stringify({ photo, productCategory, height, weight }),
+      body: JSON.stringify({ option }),
     });
   },
 
-  submitSizeFeedback: async (
-    productCategory: string,
-    sizeOrdered: string,
-    fitFeedback: 'too_tight' | 'too_loose' | 'perfect' | 'slightly_tight' | 'slightly_loose'
-  ): Promise<{ success: boolean; message: string }> => {
-    return fetchWithAuth('/tailor/size-feedback', {
+  // Get comments
+  getComments: async (postId: string): Promise<{ comments: FeedComment[] }> => {
+    return fetchWithAuth(`/feed/${postId}/comments`);
+  },
+
+  // Add comment
+  addComment: async (postId: string, content: string): Promise<{ success: boolean; comment: FeedComment }> => {
+    return fetchWithAuth(`/feed/${postId}/comments`, {
       method: 'POST',
-      body: JSON.stringify({ productCategory, sizeOrdered, fitFeedback }),
+      body: JSON.stringify({ content }),
     });
   },
 
-  getComplementary: async (
-    clothingImage: string,
-    clothingType: 'topwear' | 'bottomwear' | 'footwear' | 'accessory'
-  ): Promise<{
-    success: boolean;
-    itemAnalysis: string;
-    complementaryItems: StyleRecommendation[];
-    fullOutfitIdea: string;
-    sizeSuggestion?: string;
-  }> => {
-    return fetchWithAuth('/tailor/complementary', {
-      method: 'POST',
-      body: JSON.stringify({ clothingImage, clothingType }),
-    });
+  // Delete post
+  deletePost: async (postId: string): Promise<{ success: boolean }> => {
+    return fetchWithAuth(`/feed/${postId}`, { method: 'DELETE' });
   },
 
-  getTrending: async (
-    occasion?: string,
-    season?: string
-  ): Promise<{
-    success: boolean;
-    trends: Array<{
-      name: string;
-      description: string;
-      keyPieces: string[];
-      celebrities: string[];
-      howToWear: string;
-    }>;
-    recommendations: StyleRecommendation[];
-  }> => {
-    const params = new URLSearchParams();
-    if (occasion) params.append('occasion', occasion);
-    if (season) params.append('season', season);
-    const query = params.toString();
-    return fetchWithAuth(`/tailor/trending${query ? `?${query}` : ''}`);
-  },
-
-  updateMeasurements: async (
-    height?: number,
-    weight?: number
-  ): Promise<{ success: boolean; message: string }> => {
-    return fetchWithAuth('/tailor/update-measurements', {
-      method: 'POST',
-      body: JSON.stringify({ height, weight }),
-    });
+  // Get trending posts
+  getTrending: async (): Promise<{ posts: FeedPost[] }> => {
+    return fetchWithAuth('/feed/trending');
   },
 };
 
@@ -453,134 +400,6 @@ export const healthApi = {
   check: async (): Promise<{ status: string; timestamp: string }> => {
     const response = await fetch(`${API_BASE}/health`);
     return response.json();
-  },
-};
-
-// ==========================================
-// PREMIUM FEATURES API
-// ==========================================
-
-// Occasion Stylist API
-export type Occasion =
-  | 'office' | 'interview' | 'date_night' | 'wedding_day' | 'wedding_night'
-  | 'festive' | 'vacation' | 'casual' | 'college' | 'party' | 'formal' | 'ethnic';
-
-export interface OccasionLookItem {
-  type: 'top' | 'bottom' | 'footwear' | 'accessory' | 'outerwear';
-  title: string;
-  brand: string | null;
-  price: number | null;
-  image_url: string | null;
-  search_query: string;
-  buy_links: Array<{ store: string; url: string }>;
-}
-
-export interface OccasionLook {
-  id: string;
-  rank: number;
-  name: string;
-  description: string;
-  items: OccasionLookItem[];
-  total_price: number;
-  rationale: string;
-  palette_match: number;
-  tryon_job_id: string | null;
-  is_saved: boolean;
-  user_rating?: number;
-}
-
-export interface OccasionStylistRequest {
-  id: string;
-  user_id: string;
-  occasion: Occasion;
-  budget_min: number;
-  budget_max: number;
-  style_slider_value: number;
-  color_preferences: string[];
-  use_style_dna: boolean;
-  gender: 'male' | 'female';
-  status: string;
-  created_at: string;
-  completed_at: string | null;
-  looks?: OccasionLook[];
-  looks_count?: number;
-}
-
-export interface OccasionMeta {
-  id: Occasion;
-  name: string;
-  icon: string;
-}
-
-export const occasionApi = {
-  generate: async (params: {
-    occasion: Occasion;
-    budget_min?: number;
-    budget_max?: number;
-    style_slider?: number;
-    color_preferences?: string[];
-    use_style_dna?: boolean;
-    gender?: 'male' | 'female';
-  }): Promise<{
-    request_id: string;
-    occasion: Occasion;
-    looks: OccasionLook[];
-    generated_at: string;
-  }> => {
-    return fetchWithAuth('/occasion-stylist', {
-      method: 'POST',
-      body: JSON.stringify(params),
-    });
-  },
-
-  get: async (requestId: string): Promise<OccasionStylistRequest> => {
-    return fetchWithAuth(`/occasion-stylist/${requestId}`);
-  },
-
-  list: async (page = 1, limit = 10): Promise<{
-    requests: OccasionStylistRequest[];
-    total: number;
-    page: number;
-    limit: number;
-  }> => {
-    return fetchWithAuth(`/occasion-stylist?page=${page}&limit=${limit}`);
-  },
-
-  submitFeedback: async (
-    requestId: string,
-    lookId: string,
-    rating?: number,
-    saveToWardrobe?: boolean
-  ): Promise<{ success: boolean }> => {
-    return fetchWithAuth(`/occasion-stylist/${requestId}/feedback`, {
-      method: 'POST',
-      body: JSON.stringify({
-        look_id: lookId,
-        rating,
-        save_to_wardrobe: saveToWardrobe,
-      }),
-    });
-  },
-
-  getOccasions: async (): Promise<{ occasions: OccasionMeta[] }> => {
-    return fetchWithAuth('/occasion-stylist/meta/occasions');
-  },
-
-  fetchProductImage: async (
-    searchUrl: string,
-    itemType?: string,
-    gender?: 'male' | 'female'
-  ): Promise<{
-    success: boolean;
-    image_url: string;
-    title?: string;
-    price?: number;
-    brand?: string;
-  }> => {
-    return fetchWithAuth('/occasion-stylist/product-image', {
-      method: 'POST',
-      body: JSON.stringify({ search_url: searchUrl, item_type: itemType, gender }),
-    });
   },
 };
 
