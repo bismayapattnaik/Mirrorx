@@ -110,7 +110,7 @@ export const useAuthStore = create<AuthState>()(
           if (session?.user) {
             // Fetch user data from our backend
             try {
-              const response = await fetch(`${import.meta.env.VITE_API_URL}/user/me`, {
+              const response = await fetch(`${import.meta.env.VITE_API_URL}/me`, {
                 headers: {
                   'Authorization': `Bearer ${session.access_token}`,
                 },

@@ -194,6 +194,7 @@ export default function TryOnPage() {
 
       // Check if result image was actually generated
       if (!result.result_image_url) {
+        console.error('No result_image_url in response:', result);
         toast({
           variant: 'destructive',
           title: 'Generation incomplete',
@@ -201,6 +202,9 @@ export default function TryOnPage() {
         });
         return;
       }
+
+      // Log successful result
+      console.log('Try-on result received, image size:', result.result_image_url.length);
 
       setTryOnResult(result.result_image_url);
       setTryOnJob(result);
@@ -630,6 +634,17 @@ export default function TryOnPage() {
                       src={tryOn.resultImage}
                       alt="Try-on result"
                       className="w-full"
+                      onError={(e) => {
+                        console.error('Image failed to load:', e);
+                        toast({
+                          variant: 'destructive',
+                          title: 'Image display error',
+                          description: 'The generated image could not be displayed. Please try again.',
+                        });
+                      }}
+                      onLoad={() => {
+                        console.log('Try-on image loaded successfully');
+                      }}
                     />
                     <div className="absolute top-3 right-3 badge-premium">
                       <Check className="w-3 h-3" /> AI Generated
