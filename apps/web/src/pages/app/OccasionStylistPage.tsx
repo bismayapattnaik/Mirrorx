@@ -54,14 +54,43 @@ const COLOR_OPTIONS = [
   { value: 'earth', label: 'Earth Tones', colors: ['#8B7355', '#6B8E23', '#BC8F8F', '#CD853F', '#A0522D'] },
 ];
 
-// Placeholder images by item type
-const PLACEHOLDER_IMAGES: Record<string, string> = {
-  top: 'https://images.unsplash.com/photo-1562157873-818bc0726f68?w=300&h=400&fit=crop',
-  bottom: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=300&h=400&fit=crop',
-  footwear: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300&h=400&fit=crop',
-  accessory: 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=300&h=400&fit=crop',
-  outerwear: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=300&h=400&fit=crop',
+// Multiple placeholder images per item type for variety
+const PLACEHOLDER_IMAGES: Record<string, string[]> = {
+  top: [
+    'https://images.unsplash.com/photo-1562157873-818bc0726f68?w=300&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=300&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=300&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1607345366928-199ea26cfe3e?w=300&h=400&fit=crop',
+  ],
+  bottom: [
+    'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=300&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=300&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1473966968600-fa801b869a1a?w=300&h=400&fit=crop',
+  ],
+  footwear: [
+    'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=300&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=300&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=300&h=400&fit=crop',
+  ],
+  accessory: [
+    'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=300&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1611923134239-b9be5b4d1b42?w=300&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1590548784585-643d2b9f2925?w=300&h=400&fit=crop',
+  ],
+  outerwear: [
+    'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=300&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=300&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1548883354-94bcfe321cbb?w=300&h=400&fit=crop',
+  ],
 };
+
+// Get a varied placeholder image based on a seed
+function getVariedPlaceholder(itemType: string, seed: string): string {
+  const images = PLACEHOLDER_IMAGES[itemType] || PLACEHOLDER_IMAGES.top;
+  const hash = seed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return images[hash % images.length];
+}
 
 export default function OccasionStylistPage() {
   const { toast } = useToast();
@@ -161,10 +190,10 @@ export default function OccasionStylistPage() {
         }
       }
     } catch {
-      // Use placeholder on error
+      // Use varied placeholder on error
       setProductImages(prev => ({
         ...prev,
-        [cacheKey]: PLACEHOLDER_IMAGES[item.type] || PLACEHOLDER_IMAGES.top
+        [cacheKey]: getVariedPlaceholder(item.type, cacheKey)
       }));
     } finally {
       setLoadingImages(prev => {
@@ -271,7 +300,24 @@ export default function OccasionStylistPage() {
     }
   };
 
-  const handleTryOn = async (item: OccasionLookItem) => {
+  // Helper to convert image URL to base64
+  const imageUrlToBase64 = async (imageUrl: string): Promise<string> => {
+    const response = await fetch(imageUrl);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        // Remove data URL prefix if present
+        const base64Data = base64.includes(',') ? base64.split(',')[1] : base64;
+        resolve(base64Data);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const handleTryOn = async (item: OccasionLookItem, lookId?: string, itemIndex?: number) => {
     if (!hasSavedSelfie) {
       toast({
         title: 'No saved photo',
@@ -285,22 +331,54 @@ export default function OccasionStylistPage() {
       return;
     }
 
-    const buyLink = item.buy_links?.[0]?.url;
-    if (!buyLink) {
-      toast({
-        variant: 'destructive',
-        title: 'No product link available',
-      });
-      return;
-    }
-
     setTryOnItem(item);
     setShowTryOnDialog(true);
     setIsTryingOn(true);
     setTryOnResult(null);
 
     try {
-      const response = await tryOnApi.quickTryOnFromUrl(buyLink, 'PART', gender);
+      // Get the product image from cache or use the item's image
+      let productImageBase64: string | null = null;
+
+      // First try to use the cached product image from the card
+      if (lookId !== undefined && itemIndex !== undefined) {
+        const cacheKey = `${lookId}_${itemIndex}`;
+        const cachedImageUrl = productImages[cacheKey];
+        if (cachedImageUrl && !cachedImageUrl.includes('unsplash')) {
+          try {
+            productImageBase64 = await imageUrlToBase64(cachedImageUrl);
+          } catch {
+            console.log('Could not convert cached image, trying search');
+          }
+        }
+      }
+
+      // If no cached image, try to fetch from item's image_url
+      if (!productImageBase64 && item.image_url) {
+        try {
+          productImageBase64 = await imageUrlToBase64(item.image_url);
+        } catch {
+          console.log('Could not convert item image');
+        }
+      }
+
+      // If still no image, use the search approach
+      if (!productImageBase64) {
+        const buyLink = item.buy_links?.[0]?.url;
+        if (!buyLink) {
+          throw new Error('No product image available');
+        }
+        const response = await tryOnApi.quickTryOnFromUrl(buyLink, 'PART', gender);
+        if (response.result_image_url) {
+          setTryOnResult(response.result_image_url);
+        } else {
+          throw new Error('No result image generated');
+        }
+        return;
+      }
+
+      // Use the base64 image for try-on
+      const response = await tryOnApi.quickTryOn(productImageBase64, 'PART', gender);
       if (response.result_image_url) {
         setTryOnResult(response.result_image_url);
       } else {
@@ -334,17 +412,9 @@ export default function OccasionStylistPage() {
     }
 
     // Get the top item (shirt/blouse) for the try-on - this works best with FULL_FIT mode
-    const topItem = look.items.find(item => item.type === 'top');
-    const buyLink = topItem?.buy_links?.[0]?.url;
-
-    if (!buyLink) {
-      toast({
-        variant: 'destructive',
-        title: 'No product available',
-        description: 'Could not find a product to try on.',
-      });
-      return;
-    }
+    const topItemIndex = look.items.findIndex(item => item.type === 'top');
+    const topItem = topItemIndex >= 0 ? look.items[topItemIndex] : look.items[0];
+    const actualIndex = topItemIndex >= 0 ? topItemIndex : 0;
 
     setTryOnLook(look);
     setTryOnItem(topItem || null);
@@ -354,8 +424,45 @@ export default function OccasionStylistPage() {
     setTryOnResult(null);
 
     try {
-      // Use FULL_FIT mode for complete outfit visualization
-      const response = await tryOnApi.quickTryOnFromUrl(buyLink, 'FULL_FIT', gender);
+      // Get the product image from cache
+      let productImageBase64: string | null = null;
+      const cacheKey = `${look.id}_${actualIndex}`;
+      const cachedImageUrl = productImages[cacheKey];
+
+      if (cachedImageUrl && !cachedImageUrl.includes('unsplash')) {
+        try {
+          productImageBase64 = await imageUrlToBase64(cachedImageUrl);
+        } catch {
+          console.log('Could not convert cached image');
+        }
+      }
+
+      // If no cached image, try using item's image_url
+      if (!productImageBase64 && topItem?.image_url) {
+        try {
+          productImageBase64 = await imageUrlToBase64(topItem.image_url);
+        } catch {
+          console.log('Could not convert item image');
+        }
+      }
+
+      // If still no image, fall back to URL approach
+      if (!productImageBase64) {
+        const buyLink = topItem?.buy_links?.[0]?.url;
+        if (!buyLink) {
+          throw new Error('No product image available');
+        }
+        const response = await tryOnApi.quickTryOnFromUrl(buyLink, 'FULL_FIT', gender);
+        if (response.result_image_url) {
+          setTryOnResult(response.result_image_url);
+        } else {
+          throw new Error('No result image generated');
+        }
+        return;
+      }
+
+      // Use the base64 image for try-on
+      const response = await tryOnApi.quickTryOn(productImageBase64, 'FULL_FIT', gender);
       if (response.result_image_url) {
         setTryOnResult(response.result_image_url);
       } else {
@@ -402,7 +509,8 @@ export default function OccasionStylistPage() {
 
   const getItemImage = (lookId: string, itemIndex: number, itemType: string) => {
     const cacheKey = `${lookId}_${itemIndex}`;
-    return productImages[cacheKey] || PLACEHOLDER_IMAGES[itemType] || PLACEHOLDER_IMAGES.top;
+    // Use cached image or get a varied placeholder based on the cache key
+    return productImages[cacheKey] || getVariedPlaceholder(itemType, cacheKey);
   };
 
   const isImageLoading = (lookId: string, itemIndex: number) => {
@@ -739,7 +847,7 @@ export default function OccasionStylistPage() {
                                   <Button
                                     size="sm"
                                     className="flex-1 bg-gold hover:bg-gold/90 text-xs h-8"
-                                    onClick={() => handleTryOn(item)}
+                                    onClick={() => handleTryOn(item, look.id, itemIndex)}
                                   >
                                     <Camera className="w-3 h-3 mr-1" />
                                     Try On

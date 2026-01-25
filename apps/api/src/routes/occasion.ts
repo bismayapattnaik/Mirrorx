@@ -515,18 +515,20 @@ router.post('/product-image', authenticate, async (req: AuthRequest, res: Respon
         brand: product.brand,
       });
     } else {
-      // Return placeholder if extraction failed
+      // Return placeholder if extraction failed - use search_url as seed for variety
       res.json({
         success: false,
-        image_url: getPlaceholderImage(item_type || 'top', gender),
+        image_url: getPlaceholderImage(item_type || 'top', gender, search_url),
         message: 'Could not extract product image, using placeholder',
       });
     }
   } catch (error) {
     console.error('Product image fetch error:', error);
+    // Use a random seed for error case
+    const errorSeed = `error_${Date.now()}_${Math.random()}`;
     res.status(500).json({
       success: false,
-      image_url: getPlaceholderImage('top'),
+      image_url: getPlaceholderImage('top', 'female', errorSeed),
       error: 'Failed to fetch product image',
     });
   }
