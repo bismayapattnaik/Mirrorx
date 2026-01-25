@@ -88,6 +88,9 @@ export default {
           surface: '#181E2E',
         },
 
+        // Midnight (Legacy - maps to obsidian)
+        midnight: '#0B0F1A',
+
         // Ivory (Text)
         ivory: {
           DEFAULT: '#F5F2EA',

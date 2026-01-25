@@ -155,6 +155,21 @@ export const tryOnApi = {
   }> => {
     return fetchWithAuth('/tryon/feedback/stats');
   },
+
+  listRecent: async (limit = 50): Promise<{
+    jobs: Array<{
+      id: string;
+      user_id: string;
+      mode: string;
+      result_image_url: string | null;
+      product_image_url: string | null;
+      status: string;
+      created_at: string;
+    }>;
+    total: number;
+  }> => {
+    return fetchWithAuth(`/tryon/list/recent?limit=${limit}`);
+  },
 };
 
 // Product API

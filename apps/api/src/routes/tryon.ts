@@ -271,6 +271,33 @@ router.post(
   }
 );
 
+// GET /tryon/list - List user's try-on jobs
+router.get('/list/recent', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId;
+    const { limit = '50', status = 'SUCCEEDED' } = req.query;
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit as string)));
+
+    const result = await query<TryOnJob>(
+      `SELECT id, user_id, mode, source_image_url, product_image_url, product_url,
+              result_image_url, credits_used, status, error_message, created_at, completed_at
+       FROM tryon_jobs
+       WHERE user_id = $1 AND status = $2
+       ORDER BY created_at DESC
+       LIMIT $3`,
+      [userId, status, limitNum]
+    );
+
+    res.json({
+      jobs: result.rows,
+      total: result.rows.length,
+    });
+  } catch (error) {
+    console.error('List jobs error:', error);
+    res.status(500).json({ error: 'Server error', message: 'Failed to list jobs' });
+  }
+});
+
 // GET /tryon/:id - Get job status
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {

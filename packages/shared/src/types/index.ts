@@ -26,6 +26,7 @@ export interface User {
 export interface WardrobeItem {
   id: string;
   user_id: string;
+  tryon_job_id: string;
   tryon_image_url: string;
   product_image_url: string | null;
   product_url: string | null;
