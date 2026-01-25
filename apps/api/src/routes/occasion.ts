@@ -9,6 +9,55 @@ const router = Router();
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 const TEXT_MODEL = 'gemini-2.0-flash';
 
+// Ensure tables exist
+async function ensureTablesExist() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS stylist_requests (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      occasion VARCHAR(50) NOT NULL,
+      budget_min INTEGER DEFAULT 0,
+      budget_max INTEGER DEFAULT 50000,
+      style_slider_value INTEGER DEFAULT 50,
+      color_preferences TEXT[] DEFAULT '{}',
+      use_style_dna BOOLEAN DEFAULT true,
+      gender VARCHAR(20) DEFAULT 'female',
+      status VARCHAR(20) DEFAULT 'PENDING',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      completed_at TIMESTAMP WITH TIME ZONE
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS stylist_results (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      stylist_request_id UUID NOT NULL REFERENCES stylist_requests(id) ON DELETE CASCADE,
+      look_rank INTEGER NOT NULL,
+      look_name VARCHAR(100),
+      look_description TEXT,
+      look_payload JSONB NOT NULL,
+      total_price INTEGER,
+      user_rating INTEGER,
+      is_saved BOOLEAN DEFAULT false,
+      tryon_job_id UUID REFERENCES tryon_jobs(id),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `);
+
+  // Create indexes
+  await query(`CREATE INDEX IF NOT EXISTS idx_stylist_requests_user ON stylist_requests(user_id)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_stylist_results_request ON stylist_results(stylist_request_id)`);
+}
+
+// Initialize tables on first request
+let tablesInitialized = false;
+async function initTables() {
+  if (!tablesInitialized) {
+    await ensureTablesExist();
+    tablesInitialized = true;
+  }
+}
+
 // Indian e-commerce stores for buy links
 const INDIAN_STORES = [
   { name: 'Myntra', baseUrl: 'https://www.myntra.com/search?q=' },
@@ -182,6 +231,7 @@ Return ONLY valid JSON array:
  */
 router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await initTables();
     const userId = req.userId;
     const {
       occasion,
@@ -307,6 +357,7 @@ router.get('/:requestId', authenticate, async (req: AuthRequest, res: Response):
  */
 router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await initTables();
     const userId = req.userId;
     const { page = '1', limit = '10' } = req.query;
 

@@ -5,11 +5,53 @@ import { TIER_ENTITLEMENTS } from '@mrrx/shared';
 
 const router = Router();
 
+// Ensure tables exist
+async function ensureTablesExist() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS compare_sets (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name VARCHAR(100),
+      description TEXT,
+      is_favorite BOOLEAN DEFAULT false,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS compare_set_items (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      compare_set_id UUID NOT NULL REFERENCES compare_sets(id) ON DELETE CASCADE,
+      tryon_job_id UUID NOT NULL REFERENCES tryon_jobs(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      is_winner BOOLEAN DEFAULT false,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      UNIQUE(compare_set_id, tryon_job_id)
+    )
+  `);
+
+  // Create indexes if they don't exist
+  await query(`CREATE INDEX IF NOT EXISTS idx_compare_sets_user ON compare_sets(user_id)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_compare_items_set ON compare_set_items(compare_set_id)`);
+}
+
+// Initialize tables on first request
+let tablesInitialized = false;
+async function initTables() {
+  if (!tablesInitialized) {
+    await ensureTablesExist();
+    tablesInitialized = true;
+  }
+}
+
 /**
  * POST /compare-sets - Create a new compare set
  */
 router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await initTables();
     const userId = req.userId;
     const user = req.user;
     const { name, description, job_ids } = req.body;
@@ -85,6 +127,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<
  */
 router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await initTables();
     const userId = req.userId;
     const { page = '1', limit = '20' } = req.query;
 

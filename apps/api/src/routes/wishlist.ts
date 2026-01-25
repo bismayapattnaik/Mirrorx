@@ -6,6 +6,70 @@ import * as cheerio from 'cheerio';
 
 const router = Router();
 
+// Ensure tables exist
+async function ensureTablesExist() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS wishlist_items (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      platform VARCHAR(50) NOT NULL,
+      product_url TEXT NOT NULL,
+      title TEXT,
+      brand VARCHAR(100),
+      image_url TEXT,
+      current_price NUMERIC(10,2),
+      original_price NUMERIC(10,2),
+      lowest_price NUMERIC(10,2),
+      target_price NUMERIC(10,2),
+      occasion_tags TEXT[] DEFAULT '{}',
+      is_on_sale BOOLEAN DEFAULT false,
+      has_tried_on BOOLEAN DEFAULT false,
+      last_price_check TIMESTAMP WITH TIME ZONE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS wishlist_price_checks (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      wishlist_item_id UUID NOT NULL REFERENCES wishlist_items(id) ON DELETE CASCADE,
+      price NUMERIC(10,2),
+      was_available BOOLEAN DEFAULT true,
+      checked_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      status VARCHAR(50) DEFAULT 'OK'
+    )
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS notification_preferences (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      price_drop_alerts BOOLEAN DEFAULT true,
+      weekly_digest BOOLEAN DEFAULT true,
+      style_tips BOOLEAN DEFAULT true,
+      new_features BOOLEAN DEFAULT true,
+      email_notifications BOOLEAN DEFAULT true,
+      push_notifications BOOLEAN DEFAULT false,
+      digest_day VARCHAR(20) DEFAULT 'monday',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    )
+  `);
+
+  // Create indexes
+  await query(`CREATE INDEX IF NOT EXISTS idx_wishlist_user ON wishlist_items(user_id)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_wishlist_platform ON wishlist_items(user_id, platform)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_wishlist_sale ON wishlist_items(user_id, is_on_sale)`);
+}
+
+// Initialize tables on first request
+let tablesInitialized = false;
+async function initTables() {
+  if (!tablesInitialized) {
+    await ensureTablesExist();
+    tablesInitialized = true;
+  }
+}
+
 // Platform detection patterns
 const PLATFORM_PATTERNS: Record<Platform, RegExp> = {
   myntra: /myntra\.com/i,
@@ -131,6 +195,7 @@ function parsePrice(priceStr: string | undefined): number | null {
  */
 router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await initTables();
     const userId = req.userId;
     const user = req.user;
     const { product_url, occasion_tags } = req.body;
@@ -201,6 +266,7 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response): Promise<
  */
 router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    await initTables();
     const userId = req.userId;
     const {
       page = '1',
