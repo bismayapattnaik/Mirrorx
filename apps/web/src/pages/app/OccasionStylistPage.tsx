@@ -96,6 +96,10 @@ export default function OccasionStylistPage() {
   const [tryOnItem, setTryOnItem] = useState<OccasionLookItem | null>(null);
   const [hasSavedSelfie, setHasSavedSelfie] = useState(false);
 
+  // Full look try-on
+  const [tryOnLook, setTryOnLook] = useState<OccasionLook | null>(null);
+  const [isFullLookTryOn, setIsFullLookTryOn] = useState(false);
+
   // Fetch occasions
   useEffect(() => {
     async function fetchOccasions() {
@@ -297,6 +301,61 @@ export default function OccasionStylistPage() {
 
     try {
       const response = await tryOnApi.quickTryOnFromUrl(buyLink, 'PART', gender);
+      if (response.result_image_url) {
+        setTryOnResult(response.result_image_url);
+      } else {
+        throw new Error('No result image generated');
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Try-on failed',
+        description: error.message || 'Could not generate preview.',
+      });
+      setShowTryOnDialog(false);
+    } finally {
+      setIsTryingOn(false);
+    }
+  };
+
+  // Try on the complete look (full outfit)
+  const handleTryCompleteLook = async (look: OccasionLook) => {
+    if (!hasSavedSelfie) {
+      toast({
+        title: 'No saved photo',
+        description: 'Please upload a photo in the Try-On feature first.',
+        action: (
+          <Button size="sm" onClick={() => navigate('/app/tryon')}>
+            Go to Try-On
+          </Button>
+        ),
+      });
+      return;
+    }
+
+    // Get the top item (shirt/blouse) for the try-on - this works best with FULL_FIT mode
+    const topItem = look.items.find(item => item.type === 'top');
+    const buyLink = topItem?.buy_links?.[0]?.url;
+
+    if (!buyLink) {
+      toast({
+        variant: 'destructive',
+        title: 'No product available',
+        description: 'Could not find a product to try on.',
+      });
+      return;
+    }
+
+    setTryOnLook(look);
+    setTryOnItem(topItem || null);
+    setIsFullLookTryOn(true);
+    setShowTryOnDialog(true);
+    setIsTryingOn(true);
+    setTryOnResult(null);
+
+    try {
+      // Use FULL_FIT mode for complete outfit visualization
+      const response = await tryOnApi.quickTryOnFromUrl(buyLink, 'FULL_FIT', gender);
       if (response.result_image_url) {
         setTryOnResult(response.result_image_url);
       } else {
@@ -640,6 +699,18 @@ export default function OccasionStylistPage() {
                     </CardHeader>
 
                     <CardContent className="space-y-4">
+                      {/* Try Complete Look Button */}
+                      <div className="flex justify-center">
+                        <Button
+                          size="lg"
+                          className="bg-gradient-to-r from-gold to-amber-500 hover:from-gold/90 hover:to-amber-500/90 text-black font-semibold px-8"
+                          onClick={() => handleTryCompleteLook(look)}
+                        >
+                          <Camera className="w-5 h-5 mr-2" />
+                          Try This Look On Me
+                        </Button>
+                      </div>
+
                       {/* Visual Product Grid */}
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                         {look.items.map((item, itemIndex) => (
@@ -877,15 +948,25 @@ export default function OccasionStylistPage() {
       </Dialog>
 
       {/* Try-On Preview Dialog */}
-      <Dialog open={showTryOnDialog} onOpenChange={setShowTryOnDialog}>
+      <Dialog open={showTryOnDialog} onOpenChange={(open) => {
+        setShowTryOnDialog(open);
+        if (!open) {
+          setIsFullLookTryOn(false);
+          setTryOnLook(null);
+        }
+      }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Camera className="w-5 h-5 text-gold" />
-              Try-On Preview
+              {isFullLookTryOn ? 'Complete Look Preview' : 'Try-On Preview'}
             </DialogTitle>
             <DialogDescription>
-              {tryOnItem ? `See how "${tryOnItem.title}" looks on you` : 'Virtual try-on result'}
+              {isFullLookTryOn && tryOnLook
+                ? `See how "${tryOnLook.name}" looks on you`
+                : tryOnItem
+                ? `See how "${tryOnItem.title}" looks on you`
+                : 'Virtual try-on result'}
             </DialogDescription>
           </DialogHeader>
 
@@ -893,7 +974,9 @@ export default function OccasionStylistPage() {
             {isTryingOn ? (
               <div className="flex flex-col items-center justify-center h-64 space-y-4">
                 <RefreshCw className="w-8 h-8 text-gold animate-spin" />
-                <p className="text-muted-foreground">Generating try-on preview...</p>
+                <p className="text-muted-foreground">
+                  {isFullLookTryOn ? 'Creating your complete look...' : 'Generating try-on preview...'}
+                </p>
                 <p className="text-xs text-muted-foreground">This may take a moment</p>
               </div>
             ) : tryOnResult ? (
@@ -905,7 +988,25 @@ export default function OccasionStylistPage() {
                     className="w-full h-auto max-h-96 object-contain"
                   />
                 </div>
-                {tryOnItem && (
+
+                {/* Full Look Details */}
+                {isFullLookTryOn && tryOnLook ? (
+                  <div className="p-3 bg-charcoal rounded-lg space-y-2">
+                    <p className="font-medium text-gold">{tryOnLook.name}</p>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      {tryOnLook.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between">
+                          <span className="capitalize">{item.type}: {item.title}</span>
+                          <span className="text-gold">{formatPrice(item.price)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="pt-2 border-t border-border flex justify-between font-semibold">
+                      <span>Total</span>
+                      <span className="text-gold">{formatPrice(tryOnLook.total_price)}</span>
+                    </div>
+                  </div>
+                ) : tryOnItem && (
                   <div className="p-3 bg-charcoal rounded-lg">
                     <p className="font-medium">{tryOnItem.title}</p>
                     <p className="text-sm text-muted-foreground">
@@ -929,7 +1030,7 @@ export default function OccasionStylistPage() {
                 onClick={() => {
                   const link = document.createElement('a');
                   link.href = tryOnResult;
-                  link.download = `tryon-${tryOnItem?.title || 'preview'}.png`;
+                  link.download = `tryon-${isFullLookTryOn ? tryOnLook?.name : tryOnItem?.title || 'preview'}.png`;
                   link.click();
                 }}
               >
@@ -937,7 +1038,21 @@ export default function OccasionStylistPage() {
                 Save Image
               </Button>
             )}
-            {tryOnItem?.buy_links?.[0] && tryOnResult && (
+            {isFullLookTryOn && tryOnLook && tryOnResult ? (
+              <Button
+                className="bg-gold hover:bg-gold/90"
+                onClick={() => {
+                  tryOnLook.items.forEach((item) => {
+                    if (item.buy_links?.[0]?.url) {
+                      window.open(item.buy_links[0].url, '_blank');
+                    }
+                  });
+                }}
+              >
+                <ShoppingBag className="w-4 h-4 mr-2" />
+                Shop Complete Look
+              </Button>
+            ) : tryOnItem?.buy_links?.[0] && tryOnResult && (
               <Button className="bg-gold hover:bg-gold/90" asChild>
                 <a
                   href={tryOnItem.buy_links[0].url}
