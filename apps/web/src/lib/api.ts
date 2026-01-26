@@ -403,4 +403,412 @@ export const healthApi = {
   },
 };
 
+// ==========================================
+// Store Mode API (B2B Offline Retail)
+// ==========================================
+
+import type {
+  Store,
+  StoreZone,
+  StoreProduct,
+  StoreSession,
+  StoreCart,
+  StoreOrder,
+  PickupPass,
+  StorePlanogram,
+  TryOnJobStatus,
+} from '@mrrx/shared';
+
+// Store session token management
+let storeSessionToken: string | null = null;
+
+export function setStoreSessionToken(token: string | null) {
+  storeSessionToken = token;
+  if (token) {
+    localStorage.setItem('mirrorx_store_session', token);
+  } else {
+    localStorage.removeItem('mirrorx_store_session');
+  }
+}
+
+export function getStoreSessionToken(): string | null {
+  if (!storeSessionToken) {
+    storeSessionToken = localStorage.getItem('mirrorx_store_session');
+  }
+  return storeSessionToken;
+}
+
+async function fetchWithStoreSession<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = getStoreSessionToken();
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  if (token) {
+    (headers as Record<string, string>)['X-Store-Session'] = token;
+  }
+
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Request failed' }));
+    throw new ApiError(response.status, error.message || 'Request failed', error.details);
+  }
+
+  return response.json();
+}
+
+export const storeApi = {
+  // Session Management
+  createSession: async (
+    qrCodeId: string,
+    deviceInfo?: Record<string, unknown>
+  ): Promise<{
+    session_token: string;
+    store: Store;
+    zones: StoreZone[];
+    initial_zone?: StoreZone;
+    initial_product?: StoreProduct;
+    settings: Store['settings'];
+  }> => {
+    const response = await fetch(`${API_BASE}/store/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qr_code_id: qrCodeId, device_info: deviceInfo }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Failed to start session' }));
+      throw new ApiError(response.status, error.message);
+    }
+
+    const data = await response.json();
+    setStoreSessionToken(data.session_token);
+    return data;
+  },
+
+  getSession: async (): Promise<{
+    session: StoreSession;
+    store: Store;
+    cart: StoreCart | null;
+    has_selfie: boolean;
+  }> => {
+    return fetchWithStoreSession('/store/session');
+  },
+
+  uploadSelfie: async (selfieBase64: string): Promise<{ success: boolean; message: string }> => {
+    return fetchWithStoreSession('/store/session/selfie', {
+      method: 'POST',
+      body: JSON.stringify({ selfie_image: selfieBase64 }),
+    });
+  },
+
+  // Store Browsing
+  getZones: async (storeId: string): Promise<{ zones: StoreZone[] }> => {
+    return fetchWithStoreSession(`/store/${storeId}/zones`);
+  },
+
+  getProducts: async (
+    storeId: string,
+    params?: {
+      zone_id?: string;
+      category?: string;
+      gender?: string;
+      brand?: string;
+      min_price?: number;
+      max_price?: number;
+      search?: string;
+      page?: number;
+      limit?: number;
+    }
+  ): Promise<{
+    products: (StoreProduct & { location: StorePlanogram | null })[];
+    total: number;
+    page: number;
+    limit: number;
+  }> => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    const query = searchParams.toString();
+    return fetchWithStoreSession(`/store/${storeId}/products${query ? `?${query}` : ''}`);
+  },
+
+  getProduct: async (
+    productId: string
+  ): Promise<{
+    product: StoreProduct & { location: StorePlanogram | null; zone: StoreZone | null };
+  }> => {
+    return fetchWithStoreSession(`/store/product/${productId}`);
+  },
+
+  // Try-On
+  createTryOn: async (
+    productId: string,
+    mode: 'PART' | 'FULL_FIT' = 'PART'
+  ): Promise<{
+    job_id: string;
+    status: TryOnJobStatus;
+    result_image_url?: string;
+    product: StoreProduct;
+    location?: StorePlanogram;
+  }> => {
+    return fetchWithStoreSession('/store/tryon', {
+      method: 'POST',
+      body: JSON.stringify({ product_id: productId, mode }),
+    });
+  },
+
+  getTryOnResult: async (
+    jobId: string
+  ): Promise<{
+    id: string;
+    status: TryOnJobStatus;
+    result_image_url: string | null;
+    error_message: string | null;
+    product: StoreProduct;
+    location: StorePlanogram | null;
+  }> => {
+    return fetchWithStoreSession(`/store/tryon/${jobId}`);
+  },
+
+  // Cart Management
+  addToCart: async (
+    productId: string,
+    options?: {
+      quantity?: number;
+      size?: string;
+      color?: string;
+      tryon_job_id?: string;
+    }
+  ): Promise<{ success: boolean; cart: StoreCart }> => {
+    return fetchWithStoreSession('/store/cart/add', {
+      method: 'POST',
+      body: JSON.stringify({ product_id: productId, ...options }),
+    });
+  },
+
+  getCart: async (): Promise<{ cart: StoreCart | null }> => {
+    return fetchWithStoreSession('/store/cart');
+  },
+
+  updateCartItem: async (
+    itemId: string,
+    updates: { quantity?: number; size?: string; color?: string }
+  ): Promise<{ cart: StoreCart }> => {
+    return fetchWithStoreSession(`/store/cart/item/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  removeFromCart: async (itemId: string): Promise<{ cart: StoreCart }> => {
+    return fetchWithStoreSession(`/store/cart/item/${itemId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  applyCoupon: async (
+    couponCode: string
+  ): Promise<{ success: boolean; discount_applied: number; cart: StoreCart }> => {
+    return fetchWithStoreSession('/store/cart/coupon', {
+      method: 'POST',
+      body: JSON.stringify({ coupon_code: couponCode }),
+    });
+  },
+
+  // Checkout
+  createCheckout: async (
+    customerInfo?: {
+      customer_name?: string;
+      customer_phone?: string;
+      customer_email?: string;
+      notes?: string;
+    }
+  ): Promise<{
+    order_id: string;
+    order_number: string;
+    razorpay_order_id: string;
+    amount: number;
+    currency: string;
+    key_id: string;
+  }> => {
+    return fetchWithStoreSession('/store/checkout', {
+      method: 'POST',
+      body: JSON.stringify(customerInfo || {}),
+    });
+  },
+
+  verifyPayment: async (
+    orderId: string,
+    razorpayOrderId: string,
+    razorpayPaymentId: string,
+    razorpaySignature: string
+  ): Promise<{
+    success: boolean;
+    order: StoreOrder;
+    pickup_pass: PickupPass;
+    store: Store;
+  }> => {
+    return fetchWithStoreSession('/store/payment/verify', {
+      method: 'POST',
+      body: JSON.stringify({
+        order_id: orderId,
+        razorpay_order_id: razorpayOrderId,
+        razorpay_payment_id: razorpayPaymentId,
+        razorpay_signature: razorpaySignature,
+      }),
+    });
+  },
+
+  // Pickup Pass
+  getPickupPass: async (
+    passCode: string
+  ): Promise<{
+    pickup_pass: PickupPass;
+    order: StoreOrder;
+    store: Store;
+  }> => {
+    const response = await fetch(`${API_BASE}/store/pickup/${passCode}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Invalid pickup pass' }));
+      throw new ApiError(response.status, error.message);
+    }
+    return response.json();
+  },
+
+  // End session
+  endSession: () => {
+    setStoreSessionToken(null);
+  },
+};
+
+// Store Staff API
+export const storeStaffApi = {
+  login: async (
+    storeId: string,
+    email: string,
+    pin: string
+  ): Promise<{
+    staff: {
+      id: string;
+      name: string;
+      email: string;
+      role: string;
+      store_id: string;
+    };
+    token: string;
+  }> => {
+    const response = await fetch(`${API_BASE}/store/staff/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ store_id: storeId, email, pin }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Login failed' }));
+      throw new ApiError(response.status, error.message);
+    }
+
+    return response.json();
+  },
+
+  getOrders: async (
+    staffToken: string,
+    status?: string
+  ): Promise<{ orders: StoreOrder[] }> => {
+    const params = status ? `?status=${status}` : '';
+    const response = await fetch(`${API_BASE}/store/staff/orders${params}`, {
+      headers: { 'X-Staff-Token': staffToken },
+    });
+
+    if (!response.ok) {
+      throw new ApiError(response.status, 'Failed to get orders');
+    }
+
+    return response.json();
+  },
+
+  scanPickupPass: async (
+    staffToken: string,
+    passCode: string
+  ): Promise<{
+    order: StoreOrder;
+    items_with_locations: Array<{
+      item: StoreOrder['items'][0];
+      location: StorePlanogram | null;
+    }>;
+    pass: PickupPass;
+  }> => {
+    const response = await fetch(`${API_BASE}/store/staff/scan-pickup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Staff-Token': staffToken,
+      },
+      body: JSON.stringify({ pass_code: passCode }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Invalid pass' }));
+      throw new ApiError(response.status, error.message);
+    }
+
+    return response.json();
+  },
+
+  completePickup: async (
+    staffToken: string,
+    orderId: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await fetch(`${API_BASE}/store/staff/complete-pickup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Staff-Token': staffToken,
+      },
+      body: JSON.stringify({ order_id: orderId }),
+    });
+
+    if (!response.ok) {
+      throw new ApiError(response.status, 'Failed to complete pickup');
+    }
+
+    return response.json();
+  },
+
+  markReadyForPickup: async (
+    staffToken: string,
+    orderId: string
+  ): Promise<{ success: boolean }> => {
+    const response = await fetch(`${API_BASE}/store/staff/ready-for-pickup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Staff-Token': staffToken,
+      },
+      body: JSON.stringify({ order_id: orderId }),
+    });
+
+    if (!response.ok) {
+      throw new ApiError(response.status, 'Failed to update order');
+    }
+
+    return response.json();
+  },
+};
+
 export { ApiError };

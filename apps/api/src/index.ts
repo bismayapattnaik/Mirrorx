@@ -16,6 +16,7 @@ import wardrobeRoutes from './routes/wardrobe.js';
 import merchantRoutes from './routes/merchant.js';
 import webhookRoutes from './routes/webhooks.js';
 import feedRoutes from './routes/feed.js';
+import storeRoutes from './routes/store.js';
 
 dotenv.config();
 
@@ -116,6 +117,7 @@ app.use('/payments', paymentsRoutes);
 app.use('/wardrobe', wardrobeRoutes);
 app.use('/merchant', merchantRoutes);
 app.use('/feed', feedRoutes);
+app.use('/store', storeRoutes);
 
 // 404 handler
 app.use((_req, res) => {

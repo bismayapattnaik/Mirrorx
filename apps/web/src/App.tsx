@@ -17,6 +17,18 @@ import PrivacyPage from '@/pages/legal/PrivacyPage';
 import TermsPage from '@/pages/legal/TermsPage';
 import RefundPage from '@/pages/legal/RefundPage';
 
+// Store Mode Pages
+import StoreLayout from '@/layouts/StoreLayout';
+import StoreEntryPage from '@/pages/store/StoreEntryPage';
+import StoreBrowsePage from '@/pages/store/StoreBrowsePage';
+import StoreProductPage from '@/pages/store/StoreProductPage';
+import StoreCartPage from '@/pages/store/StoreCartPage';
+import StoreCheckoutPage from '@/pages/store/StoreCheckoutPage';
+import StorePickupPage from '@/pages/store/StorePickupPage';
+
+// Merchant Portal
+import MerchantDashboardPage from '@/pages/merchant/MerchantDashboardPage';
+
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -106,6 +118,22 @@ export default function App() {
           <Route path="feed" element={<ShopTogetherPage />} />
           <Route path="account" element={<AccountPage />} />
         </Route>
+
+        {/* Store Mode routes (no auth required - QR scan entry) */}
+        <Route path="/store" element={<StoreEntryPage />} />
+        <Route path="/store/:storeSlug" element={<StoreEntryPage />} />
+        <Route element={<StoreLayout />}>
+          <Route path="/store/browse" element={<StoreBrowsePage />} />
+          <Route path="/store/product/:productId" element={<StoreProductPage />} />
+          <Route path="/store/cart" element={<StoreCartPage />} />
+          <Route path="/store/checkout" element={<StoreCheckoutPage />} />
+        </Route>
+        <Route path="/store/pickup/:passCode" element={<StorePickupPage />} />
+        <Route path="/store/pickup" element={<StorePickupPage />} />
+
+        {/* Merchant Portal */}
+        <Route path="/merchant" element={<MerchantDashboardPage />} />
+        <Route path="/merchant/dashboard" element={<MerchantDashboardPage />} />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />
