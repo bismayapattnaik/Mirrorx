@@ -150,19 +150,60 @@ export async function extractFirstProductFromSearch(searchUrl: string): Promise<
 }
 
 /**
- * Get placeholder image URL based on item type
+ * Get placeholder image URL based on item type - with variety using Unsplash
+ * Uses multiple images per category for diversity
  */
-export function getPlaceholderImage(itemType: string, gender: 'male' | 'female' = 'female'): string {
-  // Using Unsplash for high-quality fashion placeholders
-  const placeholders: Record<string, string> = {
-    top: `https://images.unsplash.com/photo-1562157873-818bc0726f68?w=400&h=500&fit=crop`, // shirt
-    bottom: `https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=400&h=500&fit=crop`, // pants
-    footwear: `https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=500&fit=crop`, // shoes
-    accessory: `https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=400&h=500&fit=crop`, // watch
-    outerwear: `https://images.unsplash.com/photo-1551028719-00167b16eac5?w=400&h=500&fit=crop`, // jacket
+export function getPlaceholderImage(itemType: string, gender: 'male' | 'female' = 'female', seed?: string): string {
+  // Multiple images per category for variety
+  const placeholdersByType: Record<string, string[]> = {
+    top: [
+      'https://images.unsplash.com/photo-1562157873-818bc0726f68?w=400&h=500&fit=crop', // casual shirts
+      'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&h=500&fit=crop', // formal shirt
+      'https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=400&h=500&fit=crop', // t-shirt
+      'https://images.unsplash.com/photo-1607345366928-199ea26cfe3e?w=400&h=500&fit=crop', // kurta
+      'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=400&h=500&fit=crop', // blouse
+      'https://images.unsplash.com/photo-1578587018452-892bacefd3f2?w=400&h=500&fit=crop', // top
+    ],
+    bottom: [
+      'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=400&h=500&fit=crop', // jeans
+      'https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=400&h=500&fit=crop', // trousers
+      'https://images.unsplash.com/photo-1473966968600-fa801b869a1a?w=400&h=500&fit=crop', // pants
+      'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400&h=500&fit=crop', // chinos
+      'https://images.unsplash.com/photo-1582552938357-32b906df40cb?w=400&h=500&fit=crop', // skirt
+    ],
+    footwear: [
+      'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=500&fit=crop', // sneakers
+      'https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=400&h=500&fit=crop', // nike
+      'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400&h=500&fit=crop', // running shoes
+      'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=400&h=500&fit=crop', // formal shoes
+      'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=400&h=500&fit=crop', // heels
+      'https://images.unsplash.com/photo-1603808033192-082d6919d3e1?w=400&h=500&fit=crop', // sandals
+    ],
+    accessory: [
+      'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=400&h=500&fit=crop', // watch
+      'https://images.unsplash.com/photo-1611923134239-b9be5b4d1b42?w=400&h=500&fit=crop', // sunglasses
+      'https://images.unsplash.com/photo-1590548784585-643d2b9f2925?w=400&h=500&fit=crop', // bag
+      'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=400&h=500&fit=crop', // jewelry
+      'https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=400&h=500&fit=crop', // belt
+    ],
+    outerwear: [
+      'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=400&h=500&fit=crop', // jacket
+      'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400&h=500&fit=crop', // coat
+      'https://images.unsplash.com/photo-1548883354-94bcfe321cbb?w=400&h=500&fit=crop', // blazer
+      'https://images.unsplash.com/photo-1544022613-e87ca75a784a?w=400&h=500&fit=crop', // hoodie
+    ],
   };
 
-  return placeholders[itemType] || placeholders.top;
+  const images = placeholdersByType[itemType] || placeholdersByType.top;
+
+  // Use seed to pick a consistent but varied image
+  if (seed) {
+    const hash = seed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return images[hash % images.length];
+  }
+
+  // Random selection if no seed
+  return images[Math.floor(Math.random() * images.length)];
 }
 
 /**

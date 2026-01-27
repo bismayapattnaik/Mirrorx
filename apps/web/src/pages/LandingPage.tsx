@@ -12,17 +12,17 @@ import {
   ArrowRight,
   Check,
   ChevronRight,
-  Ruler,
   TrendingUp,
   Heart,
   Share2,
-  Calendar,
-  Wand2,
+  Users,
   Crown,
   Target,
-  Dna,
+  MessageCircle,
   ShoppingBag,
   Play,
+  ThumbsUp,
+  Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -169,45 +169,45 @@ const features = [
 // Unique features - Growth drivers
 const uniqueFeatures = [
   {
-    icon: Dna,
-    title: 'Style DNA',
-    description: 'AI analyzes your skin tone, body type, and features to create your unique style profile',
-    benefit: 'Never buy wrong colors again',
+    icon: Users,
+    title: 'Shop Together',
+    description: 'Share your try-ons with friends and get instant feedback before you buy',
+    benefit: 'Never buy alone again',
     color: 'from-gold to-orange-500',
   },
   {
-    icon: Wand2,
-    title: 'AI Personal Tailor',
-    description: 'Get personalized wardrobe recommendations based on your Style DNA and preferences',
-    benefit: 'Your 24/7 fashion consultant',
+    icon: MessageCircle,
+    title: 'Ask Your Circle',
+    description: 'Create polls - "Which dress should I buy?" - and let friends vote',
+    benefit: 'Crowdsourced fashion decisions',
     color: 'from-purple-500 to-pink-500',
   },
   {
-    icon: Ruler,
-    title: 'Smart Size Predictor',
-    description: 'AI predicts your exact size across different brands - no more guessing',
-    benefit: 'Zero size-related returns',
+    icon: ThumbsUp,
+    title: 'Community Picks',
+    description: 'See what outfits are trending in your city and style community',
+    benefit: 'Discover what others love',
     color: 'from-blue-500 to-cyan-500',
   },
   {
     icon: TrendingUp,
-    title: 'Trend Radar',
-    description: 'Discover trending styles that match YOUR style DNA and body type',
-    benefit: 'Always stylish, always you',
+    title: 'Viral Looks',
+    description: 'Browse the most-shared try-ons and find inspiration from real people',
+    benefit: 'Real people, real style',
     color: 'from-green-500 to-emerald-500',
   },
   {
-    icon: Calendar,
-    title: 'Outfit Planner',
-    description: 'Plan outfits for events, weather, and occasions with AI suggestions',
-    benefit: 'Never stress about what to wear',
+    icon: Share2,
+    title: 'One-Click Share',
+    description: 'Share to WhatsApp, Instagram, or your MirrorX feed instantly',
+    benefit: 'Get feedback in seconds',
     color: 'from-red-500 to-rose-500',
   },
   {
-    icon: Share2,
-    title: 'Style Community',
-    description: 'Share your virtual try-ons and get feedback from fashion enthusiasts',
-    benefit: 'Build your style confidence',
+    icon: Globe,
+    title: 'Style Feed',
+    description: 'Your personalized feed of try-ons from people with similar style',
+    benefit: 'Endless outfit inspiration',
     color: 'from-indigo-500 to-violet-500',
   },
 ];
@@ -219,32 +219,32 @@ const testimonials = [
     location: 'Mumbai',
     avatar: '👩🏻',
     rating: 5,
-    text: 'The Style DNA feature is incredible! It told me my skin undertone and which colors suit me best. Now every purchase is a winner!',
-    highlight: 'Style DNA',
+    text: 'Shared 5 outfits in my college group. Got 50 votes in 10 minutes! Bought the most voted one - everyone loved it at the party!',
+    highlight: 'Shop Together',
   },
   {
     name: 'Rahul Verma',
     location: 'Bangalore',
     avatar: '👨🏽',
     rating: 5,
-    text: 'The size predictor saved me from 3 returns last month. It knew my Levis size is different from my Zara size!',
-    highlight: 'Size Predictor',
+    text: 'My girlfriend and I try outfits together now even when we are in different cities. She picks my shirts, I pick her kurtas!',
+    highlight: 'Virtual Try-On',
   },
   {
     name: 'Anita Desai',
     location: 'Delhi',
     avatar: '👩🏾',
     rating: 5,
-    text: 'As someone who hates trial rooms, this is a game changer. The AI tailor suggests outfits for my body type perfectly.',
-    highlight: 'AI Tailor',
+    text: 'The community feed is addictive! I found so many outfit ideas from people with my body type. No more fashion influencer FOMO.',
+    highlight: 'Style Feed',
   },
   {
     name: 'Vikram Singh',
     location: 'Pune',
     avatar: '👨🏻',
     rating: 5,
-    text: 'Used it before my wedding shopping. Tried 50+ sherwanis virtually. Found THE one without visiting a single store!',
-    highlight: 'Virtual Try-On',
+    text: 'Used it before my wedding shopping. Tried 50+ sherwanis virtually, shared with family. Everyone voted - no family drama!',
+    highlight: 'Ask Your Circle',
   },
 ];
 
@@ -256,7 +256,7 @@ const pricingTiers = [
     description: 'Perfect for trying out',
     features: [
       '5 try-ons per day',
-      'Basic Style DNA',
+      'Share to 3 friends',
       'Standard quality',
       'Save to wardrobe',
     ],
@@ -270,11 +270,11 @@ const pricingTiers = [
     description: 'For fashion enthusiasts',
     features: [
       'Unlimited try-ons',
-      'Full Style DNA profile',
-      'AI Personal Tailor',
-      'Smart Size Predictor',
+      'Unlimited sharing',
+      'Create public polls',
       'HD quality outputs',
-      'Outfit suggestions',
+      'Style Feed access',
+      'Community features',
       'Priority support',
     ],
     cta: 'Start Pro Trial',
@@ -288,9 +288,9 @@ const pricingTiers = [
     features: [
       'Everything in Pro',
       'Ultra HD quality',
-      'Trend Radar access',
-      'Outfit Planner',
-      'Style Community Pro',
+      'Trending insights',
+      'Private groups',
+      'Influencer tools',
       'API access',
       'White-glove support',
     ],
@@ -344,8 +344,8 @@ export default function LandingPage() {
             <a href="#how-it-works" className="text-muted-foreground hover:text-gold transition">
               How it Works
             </a>
-            <a href="#ai-tailor" className="text-muted-foreground hover:text-gold transition">
-              AI Tailor
+            <a href="#shop-together" className="text-muted-foreground hover:text-gold transition">
+              Shop Together
             </a>
             <a href="#pricing" className="text-muted-foreground hover:text-gold transition">
               Pricing
@@ -506,8 +506,8 @@ export default function LandingPage() {
                     className="absolute -top-6 -right-6 bg-gold/20 backdrop-blur-sm rounded-xl p-3 border border-gold/30"
                   >
                     <div className="flex items-center gap-2">
-                      <Dna className="w-5 h-5 text-gold" />
-                      <span className="text-sm font-medium">Style DNA Ready</span>
+                      <ThumbsUp className="w-5 h-5 text-gold" />
+                      <span className="text-sm font-medium">12 votes received</span>
                     </div>
                   </motion.div>
 
@@ -517,8 +517,8 @@ export default function LandingPage() {
                     className="absolute -bottom-4 -left-6 bg-purple-500/20 backdrop-blur-sm rounded-xl p-3 border border-purple-500/30"
                   >
                     <div className="flex items-center gap-2">
-                      <Wand2 className="w-5 h-5 text-purple-400" />
-                      <span className="text-sm font-medium">AI Tailor Active</span>
+                      <Users className="w-5 h-5 text-purple-400" />
+                      <span className="text-sm font-medium">3 friends online</span>
                     </div>
                   </motion.div>
                 </div>
@@ -671,8 +671,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* AI Tailor - Unique Features */}
-      <section id="ai-tailor" className="py-20 relative overflow-hidden">
+      {/* Shop Together - Social Features */}
+      <section id="shop-together" className="py-20 relative overflow-hidden">
         <GradientMesh />
 
         <div className="container max-w-container mx-auto px-6 relative z-10">
@@ -683,14 +683,14 @@ export default function LandingPage() {
             className="text-center mb-16"
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-400 text-sm mb-6">
-              <Wand2 className="w-4 h-4" />
-              AI-Powered Features
+              <Users className="w-4 h-4" />
+              Social Shopping
             </div>
             <h2 className="text-4xl md:text-5xl font-orbitron font-bold mb-4">
-              Your Personal <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">AI Tailor</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Shop Together</span> with Friends
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Beyond try-on - MirrorX understands YOUR unique style and body to give personalized recommendations
+              Share your virtual try-ons, get votes from friends, and never make a bad purchase decision alone again
             </p>
           </motion.div>
 
@@ -734,8 +734,8 @@ export default function LandingPage() {
             className="text-center mt-12"
           >
             <Button size="lg" asChild className="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90">
-              <Link to={isAuthenticated ? '/app/tailor' : '/signup'}>
-                Discover Your Style DNA <ArrowRight className="ml-2 w-5 h-5" />
+              <Link to={isAuthenticated ? '/app/feed' : '/signup'}>
+                Start Shopping Together <ArrowRight className="ml-2 w-5 h-5" />
               </Link>
             </Button>
           </motion.div>
@@ -959,7 +959,7 @@ export default function LandingPage() {
               <h4 className="font-semibold mb-4">Product</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><a href="#features" className="hover:text-gold transition">Features</a></li>
-                <li><a href="#ai-tailor" className="hover:text-gold transition">AI Tailor</a></li>
+                <li><a href="#shop-together" className="hover:text-gold transition">Shop Together</a></li>
                 <li><a href="#pricing" className="hover:text-gold transition">Pricing</a></li>
                 <li><a href="#how-it-works" className="hover:text-gold transition">How It Works</a></li>
               </ul>

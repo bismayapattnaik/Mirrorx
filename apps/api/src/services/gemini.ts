@@ -406,7 +406,37 @@ Return ONLY the JSON object.`;
   }
 }
 
+/**
+ * Process try-on in store context (simplified wrapper)
+ * Uses the main try-on engine but returns base64 directly
+ */
+export async function processStoreTryOn(
+  selfieBase64: string,
+  productImageUrl: string,
+  mode: TryOnMode = 'PART'
+): Promise<string> {
+  // If product is a URL, fetch and convert to base64
+  let productBase64 = productImageUrl;
+
+  if (productImageUrl.startsWith('http')) {
+    try {
+      const response = await fetch(productImageUrl);
+      const buffer = await response.arrayBuffer();
+      const base64 = Buffer.from(buffer).toString('base64');
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      productBase64 = `data:${contentType};base64,${base64}`;
+    } catch (error) {
+      console.error('Failed to fetch product image:', error);
+      throw new Error('Failed to load product image');
+    }
+  }
+
+  // Generate try-on using the main function
+  return generateTryOnImage(selfieBase64, productBase64, mode, 'female');
+}
+
 export default {
   generateTryOnImage,
   getStyleRecommendations,
+  processStoreTryOn,
 };

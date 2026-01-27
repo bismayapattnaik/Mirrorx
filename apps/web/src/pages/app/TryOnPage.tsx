@@ -5,20 +5,17 @@ import {
   Camera,
   Link as LinkIcon,
   Sparkles,
-  Shirt,
   ArrowRight,
   Download,
   Save,
   RefreshCw,
   X,
   Check,
-  ShoppingBag,
-  ExternalLink,
-  Lightbulb,
   ThumbsUp,
   ThumbsDown,
   User,
-  Ruler,
+  Share2,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,7 +26,7 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { useAppStore } from '@/store/app-store';
 import { useAuthStore } from '@/store/auth-store';
-import { tryOnApi, productApi, wardrobeApi, creditsApi, tailorApi, StyleRecommendation, SizeRecommendation } from '@/lib/api';
+import { tryOnApi, productApi, wardrobeApi, creditsApi, feedApi } from '@/lib/api';
 import { cn, fileToBase64, isValidImageFile } from '@/lib/utils';
 
 export default function TryOnPage() {
@@ -57,19 +54,7 @@ export default function TryOnPage() {
   const [dragActive, setDragActive] = useState<'selfie' | 'product' | null>(null);
   const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [feedbackNotes, setFeedbackNotes] = useState('');
-  const [outfitSuggestions, setOutfitSuggestions] = useState<{
-    analysis: string;
-    stylingTips: string[];
-    complementaryItems: Array<{
-      type: string;
-      description: string;
-      priceRange: string;
-      stores: Array<{ name: string; url: string }>;
-    }>;
-  } | null>(null);
-  const [complementaryItems, setComplementaryItems] = useState<StyleRecommendation[]>([]);
-  const [sizeRecommendation, setSizeRecommendation] = useState<SizeRecommendation | null>(null);
-  const [isLoadingComplementary, setIsLoadingComplementary] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
 
   // Fetch credits on mount
   useState(() => {
@@ -208,31 +193,6 @@ export default function TryOnPage() {
 
       setTryOnResult(result.result_image_url);
       setTryOnJob(result);
-
-      // Store outfit suggestions if available (FULL_FIT mode)
-      if ((result as any).outfit_suggestions) {
-        setOutfitSuggestions((result as any).outfit_suggestions);
-      } else {
-        setOutfitSuggestions(null);
-      }
-
-      // Fetch complementary items for the product (top wear -> bottom wear suggestions)
-      try {
-        setIsLoadingComplementary(true);
-        const compResult = await tailorApi.getComplementary(tryOn.productImage, 'topwear');
-        setComplementaryItems(compResult.complementaryItems || []);
-
-        // Also get size recommendation
-        const sizeResult = await tailorApi.getSizeRecommendation(
-          tryOn.selfieImage,
-          'topwear'
-        );
-        setSizeRecommendation(sizeResult.sizeRecommendation);
-      } catch {
-        // Non-critical, don't show error
-      } finally {
-        setIsLoadingComplementary(false);
-      }
 
       // Refresh credits
       const balance = await creditsApi.getBalance();
@@ -651,7 +611,7 @@ export default function TryOnPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <Button variant="outline" onClick={handleDownload}>
                       <Download className="w-4 h-4 mr-2" />
                       Download
@@ -660,15 +620,57 @@ export default function TryOnPage() {
                       <Save className="w-4 h-4 mr-2" />
                       Save
                     </Button>
-                    <Button variant="outline" onClick={() => {
+                  </div>
+
+                  {/* Share to Feed */}
+                  <div className="mt-4 p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-xl border border-purple-500/20">
+                    <h4 className="font-semibold flex items-center gap-2 mb-2">
+                      <Users className="w-4 h-4 text-purple-400" />
+                      Shop Together
+                    </h4>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Share this try-on with friends and get their votes!
+                    </p>
+                    <Button
+                      className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90"
+                      onClick={async () => {
+                        if (!tryOn.currentJob?.job_id) return;
+                        setIsSharing(true);
+                        try {
+                          await feedApi.createPost({
+                            tryon_job_id: tryOn.currentJob.job_id,
+                            caption: '',
+                            is_poll: true,
+                            poll_options: ['Love it!', 'Not sure', 'Try another'],
+                          });
+                          toast({
+                            title: 'Shared!',
+                            description: 'Your try-on is now in the Shop Together feed.',
+                          });
+                        } catch {
+                          toast({
+                            variant: 'destructive',
+                            title: 'Share failed',
+                            description: 'Could not share to feed.',
+                          });
+                        } finally {
+                          setIsSharing(false);
+                        }
+                      }}
+                      disabled={isSharing}
+                    >
+                      <Share2 className="w-4 h-4 mr-2" />
+                      {isSharing ? 'Sharing...' : 'Share & Get Votes'}
+                    </Button>
+                  </div>
+
+                  <div className="mt-3">
+                    <Button variant="outline" className="w-full" onClick={() => {
                       resetTryOn();
-                      setOutfitSuggestions(null);
                       setFeedbackNotes('');
-                      setComplementaryItems([]);
-                      setSizeRecommendation(null);
                     }}>
                       <RefreshCw className="w-4 h-4 mr-2" />
-                      New
+                      Try Another Look
                     </Button>
                   </div>
 
@@ -711,157 +713,6 @@ export default function TryOnPage() {
                     </div>
                   )}
 
-                  {/* Size Recommendation */}
-                  {sizeRecommendation && (
-                    <div className="mt-4 p-4 bg-charcoal rounded-xl">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-gold flex items-center gap-2">
-                          <Ruler className="w-4 h-4" />
-                          Recommended Size
-                        </h4>
-                        <span className="text-2xl font-bold text-gold">
-                          {sizeRecommendation.recommendedSize}
-                        </span>
-                      </div>
-                      {sizeRecommendation.fitTips && sizeRecommendation.fitTips.length > 0 && (
-                        <ul className="text-xs text-muted-foreground space-y-1">
-                          {sizeRecommendation.fitTips.slice(0, 2).map((tip, i) => (
-                            <li key={i} className="flex items-start gap-2">
-                              <Check className="w-3 h-3 text-gold mt-0.5 shrink-0" />
-                              {tip}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Complementary Items - Bottom Wear Suggestions */}
-                  {complementaryItems.length > 0 && (
-                    <div className="mt-4 border-t border-gold/20 pt-4">
-                      <h4 className="font-semibold text-gold flex items-center gap-2 mb-3">
-                        <Shirt className="w-4 h-4" />
-                        Complete Your Look
-                      </h4>
-                      <p className="text-xs text-muted-foreground mb-3">
-                        Based on your top wear, we suggest these matching items:
-                      </p>
-                      <div className="space-y-2">
-                        {complementaryItems.slice(0, 3).map((item, index) => (
-                          <div
-                            key={index}
-                            className="bg-charcoal rounded-lg p-3"
-                          >
-                            <div className="flex justify-between items-start mb-2">
-                              <div>
-                                <span className="text-xs text-gold">{item.category}</span>
-                                <p className="font-medium text-sm">{item.title}</p>
-                              </div>
-                              <span className="text-xs text-gold">{item.priceRange}</span>
-                            </div>
-                            <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-                              {item.description}
-                            </p>
-                            <div className="flex flex-wrap gap-1">
-                              {item.buyLinks?.slice(0, 3).map((link, i) => (
-                                <a
-                                  key={i}
-                                  href={link.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-gold/10 hover:bg-gold/20 rounded text-xs text-gold transition-colors"
-                                >
-                                  {link.store}
-                                  <ExternalLink className="w-3 h-3" />
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {isLoadingComplementary && (
-                    <div className="mt-4 p-4 bg-charcoal rounded-xl">
-                      <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Finding matching items...</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Outfit Suggestions for FULL_FIT mode */}
-                  {outfitSuggestions && (
-                    <div className="mt-6 space-y-4">
-                      <div className="border-t border-gold/20 pt-4">
-                        <h3 className="font-semibold text-gold flex items-center gap-2 mb-3">
-                          <Lightbulb className="w-5 h-5" />
-                          Complete Your Look
-                        </h3>
-
-                        {/* Style Analysis */}
-                        {outfitSuggestions.analysis && (
-                          <p className="text-sm text-muted-foreground mb-4">
-                            {outfitSuggestions.analysis}
-                          </p>
-                        )}
-
-                        {/* Styling Tips */}
-                        {outfitSuggestions.stylingTips && outfitSuggestions.stylingTips.length > 0 && (
-                          <div className="mb-4">
-                            <p className="text-xs font-medium text-gold mb-2">Styling Tips:</p>
-                            <ul className="text-xs text-muted-foreground space-y-1">
-                              {outfitSuggestions.stylingTips.slice(0, 3).map((tip, i) => (
-                                <li key={i} className="flex items-start gap-2">
-                                  <span className="text-gold">•</span>
-                                  {tip}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {/* Complementary Items with Buy Links */}
-                        {outfitSuggestions.complementaryItems && outfitSuggestions.complementaryItems.length > 0 && (
-                          <div className="space-y-3">
-                            <p className="text-xs font-medium text-gold mb-2">
-                              <ShoppingBag className="w-4 h-4 inline mr-1" />
-                              Suggested Items to Buy:
-                            </p>
-                            {outfitSuggestions.complementaryItems.map((item, index) => (
-                              <div
-                                key={index}
-                                className="bg-charcoal rounded-lg p-3 space-y-2"
-                              >
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <p className="font-medium text-sm">{item.type}</p>
-                                    <p className="text-xs text-muted-foreground">{item.description}</p>
-                                    <p className="text-xs text-gold mt-1">{item.priceRange}</p>
-                                  </div>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  {item.stores.slice(0, 4).map((store, storeIndex) => (
-                                    <a
-                                      key={storeIndex}
-                                      href={store.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 px-2 py-1 bg-gold/10 hover:bg-gold/20 rounded text-xs text-gold transition-colors"
-                                    >
-                                      {store.name}
-                                      <ExternalLink className="w-3 h-3" />
-                                    </a>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
                 </motion.div>
               ) : (
                 <motion.div

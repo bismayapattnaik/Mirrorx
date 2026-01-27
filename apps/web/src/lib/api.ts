@@ -299,152 +299,99 @@ export const wardrobeApi = {
   },
 };
 
-// AI Tailor API
-export interface ProfileAnalysis {
-  skinTone: {
-    tone: string;
-    undertone: string;
-    description: string;
-  };
-  faceShape: string;
-  bodyType: string;
-  colorPalette: {
-    bestColors: string[];
-    avoidColors: string[];
-    neutrals: string[];
-    accentColors: string[];
-  };
-  stylePersonality: string;
+// Feed API - Social Try-On Sharing
+export interface FeedPost {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_avatar: string | null;
+  tryon_image_url: string;
+  product_url: string | null;
+  product_title: string | null;
+  caption: string | null;
+  is_poll: boolean;
+  poll_options: string[] | null;
+  votes: Record<string, number>;
+  total_votes: number;
+  comments_count: number;
+  created_at: string;
+  has_voted: boolean;
+  user_vote: string | null;
 }
 
-export interface StyleRecommendation {
-  category: string;
-  title: string;
-  description: string;
-  colors: string[];
-  occasions: string[];
-  priceRange: string;
-  searchQuery: string;
-  buyLinks: Array<{ store: string; url: string }>;
+export interface FeedComment {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_avatar: string | null;
+  content: string;
+  created_at: string;
 }
 
-export interface SizeRecommendation {
-  category: string;
-  recommendedSize: string;
-  measurements: {
-    chest?: string;
-    waist?: string;
-    hips?: string;
-    length?: string;
-  };
-  fitTips: string[];
-}
-
-export const tailorApi = {
-  analyzeProfile: async (
-    photo: string,
-    gender: 'male' | 'female'
-  ): Promise<{ success: boolean; profile: ProfileAnalysis }> => {
-    return fetchWithAuth('/tailor/analyze-profile', {
-      method: 'POST',
-      body: JSON.stringify({ photo, gender }),
-    });
-  },
-
-  getProfile: async (): Promise<{
-    success: boolean;
-    profile: ProfileAnalysis;
-    gender: string;
+export const feedApi = {
+  // Get feed posts
+  getFeed: async (params?: {
+    page?: number;
+    limit?: number;
+    filter?: 'all' | 'friends' | 'trending' | 'polls';
+  }): Promise<{
+    posts: FeedPost[];
+    total: number;
+    page: number;
+    has_more: boolean;
   }> => {
-    return fetchWithAuth('/tailor/profile');
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.append('page', String(params.page));
+    if (params?.limit) searchParams.append('limit', String(params.limit));
+    if (params?.filter) searchParams.append('filter', params.filter);
+    const query = searchParams.toString();
+    return fetchWithAuth(`/feed${query ? `?${query}` : ''}`);
   },
 
-  getRecommendations: async (
-    occasion?: string,
-    season?: string
-  ): Promise<{
-    success: boolean;
-    profile: ProfileAnalysis;
-    recommendations: StyleRecommendation[];
-  }> => {
-    return fetchWithAuth('/tailor/recommendations', {
+  // Create a new post
+  createPost: async (data: {
+    tryon_job_id: string;
+    caption?: string;
+    is_poll?: boolean;
+    poll_question?: string;
+    poll_options?: string[];
+    visibility?: 'public' | 'friends' | 'private';
+  }): Promise<{ success: boolean; post: FeedPost }> => {
+    return fetchWithAuth('/feed', {
       method: 'POST',
-      body: JSON.stringify({ occasion, season }),
+      body: JSON.stringify(data),
     });
   },
 
-  getSizeRecommendation: async (
-    photo: string,
-    productCategory: string,
-    height?: number,
-    weight?: number
-  ): Promise<{
-    success: boolean;
-    sizeRecommendation: SizeRecommendation;
-    basedOnPastFeedback: boolean;
-  }> => {
-    return fetchWithAuth('/tailor/size-recommendation', {
+  // Vote on a poll
+  vote: async (postId: string, option: string): Promise<{ success: boolean; votes: Record<string, number> }> => {
+    return fetchWithAuth(`/feed/${postId}/vote`, {
       method: 'POST',
-      body: JSON.stringify({ photo, productCategory, height, weight }),
+      body: JSON.stringify({ option }),
     });
   },
 
-  submitSizeFeedback: async (
-    productCategory: string,
-    sizeOrdered: string,
-    fitFeedback: 'too_tight' | 'too_loose' | 'perfect' | 'slightly_tight' | 'slightly_loose'
-  ): Promise<{ success: boolean; message: string }> => {
-    return fetchWithAuth('/tailor/size-feedback', {
+  // Get comments
+  getComments: async (postId: string): Promise<{ comments: FeedComment[] }> => {
+    return fetchWithAuth(`/feed/${postId}/comments`);
+  },
+
+  // Add comment
+  addComment: async (postId: string, content: string): Promise<{ success: boolean; comment: FeedComment }> => {
+    return fetchWithAuth(`/feed/${postId}/comments`, {
       method: 'POST',
-      body: JSON.stringify({ productCategory, sizeOrdered, fitFeedback }),
+      body: JSON.stringify({ content }),
     });
   },
 
-  getComplementary: async (
-    clothingImage: string,
-    clothingType: 'topwear' | 'bottomwear' | 'footwear' | 'accessory'
-  ): Promise<{
-    success: boolean;
-    itemAnalysis: string;
-    complementaryItems: StyleRecommendation[];
-    fullOutfitIdea: string;
-    sizeSuggestion?: string;
-  }> => {
-    return fetchWithAuth('/tailor/complementary', {
-      method: 'POST',
-      body: JSON.stringify({ clothingImage, clothingType }),
-    });
+  // Delete post
+  deletePost: async (postId: string): Promise<{ success: boolean }> => {
+    return fetchWithAuth(`/feed/${postId}`, { method: 'DELETE' });
   },
 
-  getTrending: async (
-    occasion?: string,
-    season?: string
-  ): Promise<{
-    success: boolean;
-    trends: Array<{
-      name: string;
-      description: string;
-      keyPieces: string[];
-      celebrities: string[];
-      howToWear: string;
-    }>;
-    recommendations: StyleRecommendation[];
-  }> => {
-    const params = new URLSearchParams();
-    if (occasion) params.append('occasion', occasion);
-    if (season) params.append('season', season);
-    const query = params.toString();
-    return fetchWithAuth(`/tailor/trending${query ? `?${query}` : ''}`);
-  },
-
-  updateMeasurements: async (
-    height?: number,
-    weight?: number
-  ): Promise<{ success: boolean; message: string }> => {
-    return fetchWithAuth('/tailor/update-measurements', {
-      method: 'POST',
-      body: JSON.stringify({ height, weight }),
-    });
+  // Get trending posts
+  getTrending: async (): Promise<{ posts: FeedPost[] }> => {
+    return fetchWithAuth('/feed/trending');
   },
 };
 
@@ -457,130 +404,410 @@ export const healthApi = {
 };
 
 // ==========================================
-// PREMIUM FEATURES API
+// Store Mode API (B2B Offline Retail)
 // ==========================================
 
-// Occasion Stylist API
-export type Occasion =
-  | 'office' | 'interview' | 'date_night' | 'wedding_day' | 'wedding_night'
-  | 'festive' | 'vacation' | 'casual' | 'college' | 'party' | 'formal' | 'ethnic';
+import type {
+  Store,
+  StoreZone,
+  StoreProduct,
+  StoreSession,
+  StoreCart,
+  StoreOrder,
+  PickupPass,
+  StorePlanogram,
+  TryOnJobStatus,
+} from '@mrrx/shared';
 
-export interface OccasionLookItem {
-  type: 'top' | 'bottom' | 'footwear' | 'accessory' | 'outerwear';
-  title: string;
-  brand: string | null;
-  price: number | null;
-  image_url: string | null;
-  search_query: string;
-  buy_links: Array<{ store: string; url: string }>;
+// Store session token management
+let storeSessionToken: string | null = null;
+
+export function setStoreSessionToken(token: string | null) {
+  storeSessionToken = token;
+  if (token) {
+    localStorage.setItem('mirrorx_store_session', token);
+  } else {
+    localStorage.removeItem('mirrorx_store_session');
+  }
 }
 
-export interface OccasionLook {
-  id: string;
-  rank: number;
-  name: string;
-  description: string;
-  items: OccasionLookItem[];
-  total_price: number;
-  rationale: string;
-  palette_match: number;
-  tryon_job_id: string | null;
-  is_saved: boolean;
-  user_rating?: number;
+export function getStoreSessionToken(): string | null {
+  if (!storeSessionToken) {
+    storeSessionToken = localStorage.getItem('mirrorx_store_session');
+  }
+  return storeSessionToken;
 }
 
-export interface OccasionStylistRequest {
-  id: string;
-  user_id: string;
-  occasion: Occasion;
-  budget_min: number;
-  budget_max: number;
-  style_slider_value: number;
-  color_preferences: string[];
-  use_style_dna: boolean;
-  gender: 'male' | 'female';
-  status: string;
-  created_at: string;
-  completed_at: string | null;
-  looks?: OccasionLook[];
-  looks_count?: number;
+async function fetchWithStoreSession<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = getStoreSessionToken();
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  if (token) {
+    (headers as Record<string, string>)['X-Store-Session'] = token;
+  }
+
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Request failed' }));
+    throw new ApiError(response.status, error.message || 'Request failed', error.details);
+  }
+
+  return response.json();
 }
 
-export interface OccasionMeta {
-  id: Occasion;
-  name: string;
-  icon: string;
-}
-
-export const occasionApi = {
-  generate: async (params: {
-    occasion: Occasion;
-    budget_min?: number;
-    budget_max?: number;
-    style_slider?: number;
-    color_preferences?: string[];
-    use_style_dna?: boolean;
-    gender?: 'male' | 'female';
-  }): Promise<{
-    request_id: string;
-    occasion: Occasion;
-    looks: OccasionLook[];
-    generated_at: string;
+export const storeApi = {
+  // Session Management
+  createSession: async (
+    qrCodeId: string,
+    deviceInfo?: Record<string, unknown>
+  ): Promise<{
+    session_token: string;
+    store: Store;
+    zones: StoreZone[];
+    initial_zone?: StoreZone;
+    initial_product?: StoreProduct;
+    settings: Store['settings'];
   }> => {
-    return fetchWithAuth('/occasion-stylist', {
+    const response = await fetch(`${API_BASE}/store/session`, {
       method: 'POST',
-      body: JSON.stringify(params),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qr_code_id: qrCodeId, device_info: deviceInfo }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Failed to start session' }));
+      throw new ApiError(response.status, error.message);
+    }
+
+    const data = await response.json();
+    setStoreSessionToken(data.session_token);
+    return data;
+  },
+
+  getSession: async (): Promise<{
+    session: StoreSession;
+    store: Store;
+    cart: StoreCart | null;
+    has_selfie: boolean;
+  }> => {
+    return fetchWithStoreSession('/store/session');
+  },
+
+  uploadSelfie: async (selfieBase64: string): Promise<{ success: boolean; message: string }> => {
+    return fetchWithStoreSession('/store/session/selfie', {
+      method: 'POST',
+      body: JSON.stringify({ selfie_image: selfieBase64 }),
     });
   },
 
-  get: async (requestId: string): Promise<OccasionStylistRequest> => {
-    return fetchWithAuth(`/occasion-stylist/${requestId}`);
+  // Store Browsing
+  getZones: async (storeId: string): Promise<{ zones: StoreZone[] }> => {
+    return fetchWithStoreSession(`/store/${storeId}/zones`);
   },
 
-  list: async (page = 1, limit = 10): Promise<{
-    requests: OccasionStylistRequest[];
+  getProducts: async (
+    storeId: string,
+    params?: {
+      zone_id?: string;
+      category?: string;
+      gender?: string;
+      brand?: string;
+      min_price?: number;
+      max_price?: number;
+      search?: string;
+      page?: number;
+      limit?: number;
+    }
+  ): Promise<{
+    products: (StoreProduct & { location: StorePlanogram | null })[];
     total: number;
     page: number;
     limit: number;
   }> => {
-    return fetchWithAuth(`/occasion-stylist?page=${page}&limit=${limit}`);
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    const query = searchParams.toString();
+    return fetchWithStoreSession(`/store/${storeId}/products${query ? `?${query}` : ''}`);
   },
 
-  submitFeedback: async (
-    requestId: string,
-    lookId: string,
-    rating?: number,
-    saveToWardrobe?: boolean
-  ): Promise<{ success: boolean }> => {
-    return fetchWithAuth(`/occasion-stylist/${requestId}/feedback`, {
+  getProduct: async (
+    productId: string
+  ): Promise<{
+    product: StoreProduct & { location: StorePlanogram | null; zone: StoreZone | null };
+  }> => {
+    return fetchWithStoreSession(`/store/product/${productId}`);
+  },
+
+  // Try-On
+  createTryOn: async (
+    productId: string,
+    mode: 'PART' | 'FULL_FIT' = 'PART'
+  ): Promise<{
+    job_id: string;
+    status: TryOnJobStatus;
+    result_image_url?: string;
+    product: StoreProduct;
+    location?: StorePlanogram;
+  }> => {
+    return fetchWithStoreSession('/store/tryon', {
+      method: 'POST',
+      body: JSON.stringify({ product_id: productId, mode }),
+    });
+  },
+
+  getTryOnResult: async (
+    jobId: string
+  ): Promise<{
+    id: string;
+    status: TryOnJobStatus;
+    result_image_url: string | null;
+    error_message: string | null;
+    product: StoreProduct;
+    location: StorePlanogram | null;
+  }> => {
+    return fetchWithStoreSession(`/store/tryon/${jobId}`);
+  },
+
+  // Cart Management
+  addToCart: async (
+    productId: string,
+    options?: {
+      quantity?: number;
+      size?: string;
+      color?: string;
+      tryon_job_id?: string;
+    }
+  ): Promise<{ success: boolean; cart: StoreCart }> => {
+    return fetchWithStoreSession('/store/cart/add', {
+      method: 'POST',
+      body: JSON.stringify({ product_id: productId, ...options }),
+    });
+  },
+
+  getCart: async (): Promise<{ cart: StoreCart | null }> => {
+    return fetchWithStoreSession('/store/cart');
+  },
+
+  updateCartItem: async (
+    itemId: string,
+    updates: { quantity?: number; size?: string; color?: string }
+  ): Promise<{ cart: StoreCart }> => {
+    return fetchWithStoreSession(`/store/cart/item/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  removeFromCart: async (itemId: string): Promise<{ cart: StoreCart }> => {
+    return fetchWithStoreSession(`/store/cart/item/${itemId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  applyCoupon: async (
+    couponCode: string
+  ): Promise<{ success: boolean; discount_applied: number; cart: StoreCart }> => {
+    return fetchWithStoreSession('/store/cart/coupon', {
+      method: 'POST',
+      body: JSON.stringify({ coupon_code: couponCode }),
+    });
+  },
+
+  // Checkout
+  createCheckout: async (
+    customerInfo?: {
+      customer_name?: string;
+      customer_phone?: string;
+      customer_email?: string;
+      notes?: string;
+    }
+  ): Promise<{
+    order_id: string;
+    order_number: string;
+    razorpay_order_id: string;
+    amount: number;
+    currency: string;
+    key_id: string;
+  }> => {
+    return fetchWithStoreSession('/store/checkout', {
+      method: 'POST',
+      body: JSON.stringify(customerInfo || {}),
+    });
+  },
+
+  verifyPayment: async (
+    orderId: string,
+    razorpayOrderId: string,
+    razorpayPaymentId: string,
+    razorpaySignature: string
+  ): Promise<{
+    success: boolean;
+    order: StoreOrder;
+    pickup_pass: PickupPass;
+    store: Store;
+  }> => {
+    return fetchWithStoreSession('/store/payment/verify', {
       method: 'POST',
       body: JSON.stringify({
-        look_id: lookId,
-        rating,
-        save_to_wardrobe: saveToWardrobe,
+        order_id: orderId,
+        razorpay_order_id: razorpayOrderId,
+        razorpay_payment_id: razorpayPaymentId,
+        razorpay_signature: razorpaySignature,
       }),
     });
   },
 
-  getOccasions: async (): Promise<{ occasions: OccasionMeta[] }> => {
-    return fetchWithAuth('/occasion-stylist/meta/occasions');
+  // Pickup Pass
+  getPickupPass: async (
+    passCode: string
+  ): Promise<{
+    pickup_pass: PickupPass;
+    order: StoreOrder;
+    store: Store;
+  }> => {
+    const response = await fetch(`${API_BASE}/store/pickup/${passCode}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Invalid pickup pass' }));
+      throw new ApiError(response.status, error.message);
+    }
+    return response.json();
   },
 
-  fetchProductImage: async (
-    searchUrl: string,
-    itemType?: string,
-    gender?: 'male' | 'female'
+  // End session
+  endSession: () => {
+    setStoreSessionToken(null);
+  },
+};
+
+// Store Staff API
+export const storeStaffApi = {
+  login: async (
+    storeId: string,
+    email: string,
+    pin: string
   ): Promise<{
-    success: boolean;
-    image_url: string;
-    title?: string;
-    price?: number;
-    brand?: string;
+    staff: {
+      id: string;
+      name: string;
+      email: string;
+      role: string;
+      store_id: string;
+    };
+    token: string;
   }> => {
-    return fetchWithAuth('/occasion-stylist/product-image', {
+    const response = await fetch(`${API_BASE}/store/staff/login`, {
       method: 'POST',
-      body: JSON.stringify({ search_url: searchUrl, item_type: itemType, gender }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ store_id: storeId, email, pin }),
     });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Login failed' }));
+      throw new ApiError(response.status, error.message);
+    }
+
+    return response.json();
+  },
+
+  getOrders: async (
+    staffToken: string,
+    status?: string
+  ): Promise<{ orders: StoreOrder[] }> => {
+    const params = status ? `?status=${status}` : '';
+    const response = await fetch(`${API_BASE}/store/staff/orders${params}`, {
+      headers: { 'X-Staff-Token': staffToken },
+    });
+
+    if (!response.ok) {
+      throw new ApiError(response.status, 'Failed to get orders');
+    }
+
+    return response.json();
+  },
+
+  scanPickupPass: async (
+    staffToken: string,
+    passCode: string
+  ): Promise<{
+    order: StoreOrder;
+    items_with_locations: Array<{
+      item: StoreOrder['items'][0];
+      location: StorePlanogram | null;
+    }>;
+    pass: PickupPass;
+  }> => {
+    const response = await fetch(`${API_BASE}/store/staff/scan-pickup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Staff-Token': staffToken,
+      },
+      body: JSON.stringify({ pass_code: passCode }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Invalid pass' }));
+      throw new ApiError(response.status, error.message);
+    }
+
+    return response.json();
+  },
+
+  completePickup: async (
+    staffToken: string,
+    orderId: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await fetch(`${API_BASE}/store/staff/complete-pickup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Staff-Token': staffToken,
+      },
+      body: JSON.stringify({ order_id: orderId }),
+    });
+
+    if (!response.ok) {
+      throw new ApiError(response.status, 'Failed to complete pickup');
+    }
+
+    return response.json();
+  },
+
+  markReadyForPickup: async (
+    staffToken: string,
+    orderId: string
+  ): Promise<{ success: boolean }> => {
+    const response = await fetch(`${API_BASE}/store/staff/ready-for-pickup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Staff-Token': staffToken,
+      },
+      body: JSON.stringify({ order_id: orderId }),
+    });
+
+    if (!response.ok) {
+      throw new ApiError(response.status, 'Failed to update order');
+    }
+
+    return response.json();
   },
 };
 
