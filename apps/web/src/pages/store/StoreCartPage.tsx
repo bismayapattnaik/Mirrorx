@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Minus, Plus, Trash2, ShoppingBag, MapPin, Tag,
+  ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Tag,
   ChevronRight, Loader2, Sparkles
 } from 'lucide-react';
 import { storeApi } from '@/lib/api';
@@ -10,13 +10,13 @@ import { useStoreModeStore } from '@/store/store-mode-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import type { StoreCartItem, StoreProduct } from '@mrrx/shared';
+import type { StoreProduct } from '@mrrx/shared';
 
 export default function StoreCartPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const { store, cart, setCart, setLoading, isLoading } = useStoreModeStore();
+  const { cart, setCart, setLoading, isLoading } = useStoreModeStore();
 
   const [couponCode, setCouponCode] = useState('');
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
@@ -287,7 +287,7 @@ export default function StoreCartPage() {
                     {cart.coupon_code} applied
                   </span>
                   <span className="text-green-400 text-sm">
-                    -{formatPrice(cart.discount)}
+                    -{formatPrice(cart.discount || 0)}
                   </span>
                 </div>
               )}
@@ -304,7 +304,7 @@ export default function StoreCartPage() {
                 <span>{formatPrice(cart?.subtotal || 0)}</span>
               </div>
 
-              {cart?.discount > 0 && (
+              {cart && cart.discount > 0 && (
                 <div className="flex justify-between text-green-400">
                   <span>Discount</span>
                   <span>-{formatPrice(cart.discount)}</span>
@@ -337,7 +337,7 @@ export default function StoreCartPage() {
             </div>
             <div className="text-right">
               <p className="text-white/60 text-sm">{itemCount} items</p>
-              {cart?.discount > 0 && (
+              {cart && cart.discount > 0 && (
                 <p className="text-green-400 text-sm">You save {formatPrice(cart.discount)}</p>
               )}
             </div>

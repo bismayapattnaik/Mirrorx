@@ -81,4 +81,42 @@ router.delete('/', authenticate, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// GET /me/export - Export all user data (DPDP Act compliance)
+router.get('/export', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId;
+
+    const [
+      user,
+      wardrobe,
+      credits,
+      subscriptions,
+      orders,
+      tryons
+    ] = await Promise.all([
+      query('SELECT * FROM users WHERE id = $1', [userId]),
+      query('SELECT * FROM wardrobe WHERE user_id = $1', [userId]),
+      query('SELECT * FROM credits_ledger WHERE user_id = $1', [userId]),
+      query('SELECT * FROM subscriptions WHERE user_id = $1', [userId]),
+      query('SELECT * FROM orders WHERE user_id = $1', [userId]),
+      query('SELECT * FROM tryon_jobs WHERE user_id = $1', [userId]),
+    ]);
+
+    const exportData = {
+      profile: user.rows[0],
+      wardrobe: wardrobe.rows,
+      credits_history: credits.rows,
+      subscriptions: subscriptions.rows,
+      orders: orders.rows,
+      try_on_history: tryons.rows,
+      exported_at: new Date().toISOString(),
+    };
+
+    res.json(exportData);
+  } catch (error) {
+    console.error('Export data error:', error);
+    res.status(500).json({ error: 'Server error', message: 'Failed to export data' });
+  }
+});
+
 export default router;

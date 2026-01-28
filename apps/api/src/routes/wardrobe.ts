@@ -15,7 +15,7 @@ router.get(
   async (req: AuthRequest, res: Response) => {
     try {
       const userId = req.userId;
-      const { search, category, sort, page, limit } = req.query as {
+      const { search, category, sort, page, limit } = req.query as any as {
         search?: string;
         category?: string;
         sort: string;

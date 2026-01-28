@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Store, BarChart3, Package, Users, QrCode, Settings, Plus,
-  TrendingUp, ShoppingBag, Eye, MousePointer, CreditCard,
+  ShoppingBag, Eye, MousePointer, CreditCard,
   ArrowUpRight, ArrowDownRight, Clock, MapPin
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -61,7 +61,6 @@ const RECENT_ORDERS = [
 ];
 
 export default function MerchantDashboardPage() {
-  const [selectedStore, setSelectedStore] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month'>('today');
 
   const formatPrice = (paise: number) => {
@@ -202,7 +201,6 @@ export default function MerchantDashboardPage() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.1 }}
                   className="bg-white/5 rounded-2xl p-6 border border-white/5 hover:border-white/10 transition-all cursor-pointer"
-                  onClick={() => setSelectedStore(store.id)}
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-4">

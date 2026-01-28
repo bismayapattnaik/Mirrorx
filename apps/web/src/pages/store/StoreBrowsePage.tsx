@@ -35,7 +35,6 @@ export default function StoreBrowsePage() {
     setCurrentZone,
     setSearchQuery,
     setFilters,
-    setSelectedProduct,
     setLoading,
     isLoading,
   } = useStoreModeStore();

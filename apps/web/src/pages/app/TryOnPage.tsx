@@ -9,6 +9,7 @@ import {
   Download,
   Save,
   RefreshCw,
+  Shirt,
   X,
   Check,
   ThumbsUp,

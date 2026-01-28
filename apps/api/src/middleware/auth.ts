@@ -235,6 +235,6 @@ export function generateToken(userId: string, email: string): string {
   }
 
   return jwt.sign({ userId, email }, secret, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    expiresIn: (process.env.JWT_EXPIRES_IN as any) || '7d',
   });
 }

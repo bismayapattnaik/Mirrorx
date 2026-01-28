@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Sparkles, MapPin, ShoppingBag, ChevronRight, Camera,
-  Check, Heart, Share2, ZoomIn, X, Loader2, Upload
+  Check, Heart, Share2, X, Loader2
 } from 'lucide-react';
 import { storeApi } from '@/lib/api';
 import { useStoreModeStore } from '@/store/store-mode-store';
@@ -19,9 +19,7 @@ export default function StoreProductPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
-    store,
     hasSelfie,
-    cart,
     setSelectedProduct,
     setCart,
     addTryOnResult,

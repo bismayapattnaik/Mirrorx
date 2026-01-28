@@ -3,8 +3,8 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import QRCode from 'qrcode';
-import { query } from '../db/index.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { query, withTransaction } from '../db/index.js';
+import { authenticate } from '../middleware/auth.js';
 import {
   Store,
   StoreZone,
@@ -20,6 +20,7 @@ import {
   StoreQRCode,
   StoreCoupon,
   StoreAnalyticsEvent,
+  StoreDailyMetrics,
 } from '@mrrx/shared';
 
 const router = Router();
@@ -30,7 +31,7 @@ const router = Router();
 
 // Store Session Authentication
 async function authenticateStoreSession(req: Request, res: Response, next: NextFunction) {
-  const sessionToken = req.headers['x-store-session'] as string || req.body.session_token;
+  const sessionToken = (req.headers['x-store-session'] as string) || req.body.session_token;
 
   if (!sessionToken) {
     return res.status(401).json({
@@ -188,7 +189,7 @@ router.post('/session', async (req: Request, res: Response) => {
     // Find QR code and get store/zone/product context
     const qrResult = await query<StoreQRCode>(
       `SELECT * FROM store_qr_codes WHERE qr_code_id = $1 AND is_active = true`,
-      [qr_code_id]
+      [qr_code_id as string]
     );
 
     if (qrResult.rows.length === 0) {
@@ -318,6 +319,39 @@ router.post('/session/selfie', authenticateStoreSession, async (req: Request, re
   } catch (error) {
     console.error('Upload selfie error:', error);
     res.status(500).json({ error: 'Server error', message: 'Failed to upload selfie' });
+  }
+});
+
+// DELETE /store/session - End session and delete ephemeral data (DPDP compliance)
+router.delete('/session', authenticateStoreSession, async (req: Request, res: Response) => {
+  try {
+    const session = (req as any).storeSession as StoreSession;
+
+    await withTransaction(async (client) => {
+      // 1. Clear cart
+      const cartResult = await client.query('SELECT id FROM store_carts WHERE session_id = $1', [session.id]);
+      if (cartResult.rows.length > 0) {
+        await client.query('DELETE FROM store_cart_items WHERE cart_id = $1', [cartResult.rows[0].id]);
+        await client.query('DELETE FROM store_carts WHERE id = $1', [cartResult.rows[0].id]);
+      }
+
+      // 2. Mark session as ended and clear selfie
+      await client.query(
+        "UPDATE store_sessions SET status = 'EXPIRED', ended_at = NOW(), selfie_image_url = NULL WHERE id = $1",
+        [session.id]
+      );
+
+      // 3. Track event
+      await trackEvent(session.store_id, 'session_end', { reason: 'user_requested' }, session.id);
+    });
+
+    res.json({
+      success: true,
+      message: 'Session ended and personal data (selfie) removed.',
+    });
+  } catch (error) {
+    console.error('End session error:', error);
+    res.status(500).json({ error: 'Server error', message: 'Failed to end session' });
   }
 });
 
@@ -506,11 +540,11 @@ router.get('/product/:productId', async (req: Request, res: Response) => {
     }
 
     // Track product view if session exists
-    const sessionToken = req.headers['x-store-session'] as string;
+    const sessionToken = req.headers['x-store-session'];
     if (sessionToken) {
       const sessionResult = await query<StoreSession>(
         'SELECT * FROM store_sessions WHERE session_token = $1',
-        [sessionToken]
+        [sessionToken as string]
       );
       if (sessionResult.rows.length > 0) {
         await trackEvent(
@@ -519,8 +553,8 @@ router.get('/product/:productId', async (req: Request, res: Response) => {
           { product_id: productId },
           sessionResult.rows[0].id,
           undefined,
-          result.rows[0].zone_id || undefined,
-          productId
+          (result.rows[0].zone_id as string) || undefined,
+          productId as string
         );
       }
     }
@@ -574,6 +608,40 @@ router.post('/tryon', authenticateStoreSession, async (req: Request, res: Respon
 
     // Track try-on start
     await trackEvent(session.store_id, 'tryon_start', { product_id, mode }, session.id, undefined, product.zone_id || undefined, product_id);
+
+    // Cost Optimization: Check for existing successful try-on for this selfie + product combo
+    const existingJob = await query<{
+      tryon_job_id: string;
+      result_image_url: string;
+    }>(
+      `SELECT stj.tryon_job_id, tj.result_image_url
+       FROM store_tryon_jobs stj
+       JOIN tryon_jobs tj ON tj.id = stj.tryon_job_id
+       WHERE stj.store_id = $1 AND stj.product_id = $2
+       AND tj.source_image_url = $3 AND tj.status = 'SUCCEEDED' AND tj.mode = $4
+       ORDER BY stj.created_at DESC LIMIT 1`,
+      [session.store_id, product_id, session.selfie_image_url as string, mode]
+    );
+
+    if (existingJob.rows.length > 0) {
+      const cacheResult = existingJob.rows[0];
+      await trackEvent(session.store_id, 'tryon_cache_hit', { product_id, job_id: cacheResult.tryon_job_id }, session.id);
+
+      // Get location info
+      const locationResult = await query<StorePlanogram>(
+        'SELECT * FROM store_planogram WHERE product_id = $1',
+        [product_id]
+      );
+
+      return res.json({
+        job_id: cacheResult.tryon_job_id,
+        status: 'SUCCEEDED',
+        result_image_url: cacheResult.result_image_url,
+        product,
+        location: locationResult.rows[0] || null,
+        cached: true
+      });
+    }
 
     // Create try-on job (using existing try-on infrastructure)
     const jobId = uuidv4();
@@ -1687,7 +1755,7 @@ router.post('/merchant/stores/:storeId/products/import', authenticateMerchantSto
         const zoneId = product.zone_slug ? zoneMap.get(product.zone_slug) : null;
 
         // Check if product exists
-        const existing = await query(
+        const existing = await query<{ id: string }>(
           'SELECT id FROM store_products WHERE store_id = $1 AND sku = $2',
           [storeId, product.sku]
         );

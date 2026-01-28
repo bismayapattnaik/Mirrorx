@@ -236,7 +236,7 @@ export async function generateTryOnImage(
       }, null, 2));
 
       // Check for blocked content
-      if (candidate.finishReason === 'SAFETY' || candidate.finishReason === 'BLOCKED') {
+      if ((candidate.finishReason as string) === 'SAFETY' || (candidate.finishReason as string) === 'BLOCKED') {
         console.error('Content was blocked by safety filters');
         throw new Error('Image generation was blocked by safety filters. Please try different images.');
       }

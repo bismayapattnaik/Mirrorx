@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, Sparkles, ChevronRight, MapPin, Clock, Shield, Upload } from 'lucide-react';
-import { storeApi, setStoreSessionToken } from '@/lib/api';
+import { storeApi } from '@/lib/api';
 import { useStoreModeStore } from '@/store/store-mode-store';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -19,7 +19,6 @@ export default function StoreEntryPage() {
     setError,
     store,
     hasSelfie,
-    isLoading,
     error,
   } = useStoreModeStore();
 
