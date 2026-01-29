@@ -27,7 +27,17 @@ import StoreCheckoutPage from '@/pages/store/StoreCheckoutPage';
 import StorePickupPage from '@/pages/store/StorePickupPage';
 
 // Merchant Portal
+import MerchantLayout from '@/layouts/MerchantLayout';
+import MerchantLoginPage from '@/pages/merchant/MerchantLoginPage';
 import MerchantDashboardPage from '@/pages/merchant/MerchantDashboardPage';
+import MerchantProductsPage from '@/pages/merchant/MerchantProductsPage';
+import MerchantStaffPage from '@/pages/merchant/MerchantStaffPage';
+import MerchantQRPage from '@/pages/merchant/MerchantQRPage';
+import MerchantAnalyticsPage from '@/pages/merchant/MerchantAnalyticsPage';
+
+// Staff Portal
+import StaffLoginPage from '@/pages/staff/StaffLoginPage';
+import StaffDashboardPage from '@/pages/staff/StaffDashboardPage';
 
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -132,8 +142,22 @@ export default function App() {
         <Route path="/store/pickup" element={<StorePickupPage />} />
 
         {/* Merchant Portal */}
-        <Route path="/merchant" element={<MerchantDashboardPage />} />
-        <Route path="/merchant/dashboard" element={<MerchantDashboardPage />} />
+        <Route path="/merchant/login" element={<MerchantLoginPage />} />
+        <Route path="/merchant" element={<MerchantLayout />}>
+          <Route index element={<MerchantDashboardPage />} />
+          <Route path="dashboard" element={<MerchantDashboardPage />} />
+          <Route path="products" element={<MerchantProductsPage />} />
+          <Route path="staff" element={<MerchantStaffPage />} />
+          <Route path="qr-codes" element={<MerchantQRPage />} />
+          <Route path="analytics" element={<MerchantAnalyticsPage />} />
+          <Route path="coupons" element={<MerchantAnalyticsPage />} />
+          <Route path="settings" element={<MerchantDashboardPage />} />
+        </Route>
+
+        {/* Staff Portal */}
+        <Route path="/staff/login" element={<StaffLoginPage />} />
+        <Route path="/staff" element={<StaffDashboardPage />} />
+        <Route path="/staff/dashboard" element={<StaffDashboardPage />} />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />
