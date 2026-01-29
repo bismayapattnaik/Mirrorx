@@ -294,7 +294,7 @@ router.post('/session', async (req: Request, res: Response) => {
 router.post('/session/selfie', authenticateStoreSession, async (req: Request, res: Response) => {
   try {
     const session = (req as any).storeSession as StoreSession;
-    const { selfie_image } = req.body;
+    const { selfie_image, consent_given } = req.body;
 
     if (!selfie_image) {
       return res.status(400).json({
@@ -304,13 +304,14 @@ router.post('/session/selfie', authenticateStoreSession, async (req: Request, re
     }
 
     // Store selfie (temporarily for session duration)
+    // and record consent reference
     await query(
-      'UPDATE store_sessions SET selfie_image_url = $1 WHERE id = $2',
+      'UPDATE store_sessions SET selfie_image_url = $1, last_active_at = NOW() WHERE id = $2',
       [selfie_image, session.id]
     );
 
-    // Track event
-    await trackEvent(session.store_id, 'selfie_upload', {}, session.id);
+    // Track event with consent reference
+    await trackEvent(session.store_id, 'selfie_upload', { consent_given: !!consent_given }, session.id);
 
     res.json({
       success: true,

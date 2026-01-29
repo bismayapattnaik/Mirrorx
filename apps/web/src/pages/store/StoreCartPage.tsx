@@ -304,10 +304,10 @@ export default function StoreCartPage() {
                 <span>{formatPrice(cart?.subtotal || 0)}</span>
               </div>
 
-              {cart && cart.discount > 0 && (
+              {(cart?.discount ?? 0) > 0 && (
                 <div className="flex justify-between text-green-400">
                   <span>Discount</span>
-                  <span>-{formatPrice(cart.discount)}</span>
+                  <span>-{formatPrice(cart?.discount ?? 0)}</span>
                 </div>
               )}
 
@@ -337,8 +337,8 @@ export default function StoreCartPage() {
             </div>
             <div className="text-right">
               <p className="text-white/60 text-sm">{itemCount} items</p>
-              {cart && cart.discount > 0 && (
-                <p className="text-green-400 text-sm">You save {formatPrice(cart.discount)}</p>
+              {(cart?.discount ?? 0) > 0 && (
+                <p className="text-green-400 text-sm">You save {formatPrice(cart?.discount ?? 0)}</p>
               )}
             </div>
           </div>

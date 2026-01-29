@@ -23,6 +23,7 @@ export default function StoreProductPage() {
     setSelectedProduct,
     setCart,
     addTryOnResult,
+    currentTryOn,
     setCurrentTryOn,
     isTryingOn,
     setIsTryingOn,
@@ -166,7 +167,7 @@ export default function StoreProductPage() {
       const response = await storeApi.addToCart(product.id, {
         size: selectedSize || undefined,
         color: selectedColor || undefined,
-        tryon_job_id: tryOnResult ? undefined : undefined, // Link try-on if available
+        tryon_job_id: tryOnResult ? currentTryOn?.jobId : undefined, // Link try-on if available
       });
 
       setCart(response.cart);

@@ -504,10 +504,10 @@ export const storeApi = {
     return fetchWithStoreSession('/store/session');
   },
 
-  uploadSelfie: async (selfieBase64: string): Promise<{ success: boolean; message: string }> => {
+  uploadSelfie: async (selfieBase64: string, consentGiven?: boolean): Promise<{ success: boolean; message: string }> => {
     return fetchWithStoreSession('/store/session/selfie', {
       method: 'POST',
-      body: JSON.stringify({ selfie_image: selfieBase64 }),
+      body: JSON.stringify({ selfie_image: selfieBase64, consent_given: consentGiven }),
     });
   },
 

@@ -25,6 +25,7 @@ export default function StoreEntryPage() {
   const [step, setStep] = useState<'loading' | 'welcome' | 'selfie' | 'ready'>('loading');
   const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [consentGiven, setConsentGiven] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const qrCodeId = searchParams.get('qr');
@@ -114,7 +115,7 @@ export default function StoreEntryPage() {
       // Upload
       setIsUploading(true);
       try {
-        await storeApi.uploadSelfie(base64);
+        await storeApi.uploadSelfie(base64, consentGiven);
         setSelfieStatus(true);
         setStep('ready');
         toast({
@@ -330,18 +331,35 @@ export default function StoreEntryPage() {
               />
             </div>
 
-            {/* Privacy Note */}
-            <div className="flex items-center gap-2 text-white/50 text-sm mb-6">
-              <Shield className="w-4 h-4" />
-              <span>Your photo is used only for try-on and deleted after your session</span>
+            {/* Privacy Note & Consent */}
+            <div className="space-y-4 mb-6">
+              <div className="flex items-start gap-3 p-4 bg-white/5 rounded-xl border border-white/10">
+                <input
+                  type="checkbox"
+                  id="consent"
+                  checked={consentGiven}
+                  onChange={(e) => setConsentGiven(e.target.checked)}
+                  className="mt-1 w-4 h-4 rounded border-white/20 bg-transparent text-indigo-500 focus:ring-indigo-500"
+                />
+                <label htmlFor="consent" className="text-sm text-white/70 leading-snug cursor-pointer">
+                  I consent to MirrorX processing my photo for the sole purpose of Virtual Try-On.
+                  My data will be deleted when this session ends.
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2 text-white/40 text-xs px-1">
+                <Shield className="w-3 h-3" />
+                <span>DPDP Act Compliant • Ephemeral Processing</span>
+              </div>
             </div>
 
             {/* Actions */}
             <div className="space-y-3">
               {!selfiePreview && (
                 <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-6 text-lg bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-2xl font-semibold"
+                  onClick={() => consentGiven ? fileInputRef.current?.click() : toast({ title: "Consent required", description: "Please accept the privacy terms to continue.", variant: "destructive" })}
+                  disabled={!consentGiven}
+                  className="w-full py-6 text-lg bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-2xl font-semibold disabled:opacity-50"
                 >
                   <Camera className="w-5 h-5 mr-2" />
                   Take Photo
