@@ -30,7 +30,7 @@ const navItems = [
   { path: '/app/tryon', label: 'Try On', icon: Sparkles },
   { path: '/app/wardrobe', label: 'Wardrobe', icon: Shirt },
   { path: '/app/feed', label: 'Shop Together', icon: Users },
-  { path: '/store', label: 'Store Mode', icon: Store },
+  { path: '/store', label: 'Store', icon: Store },
   { path: '/app/account', label: 'Account', icon: User },
 ];
 
