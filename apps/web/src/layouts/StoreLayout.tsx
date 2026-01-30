@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ShoppingBag, Home, Search, User } from 'lucide-react';
 import { useStoreModeStore } from '@/store/store-mode-store';
@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 
 export default function StoreLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { store, cart } = useStoreModeStore();
 
   const cartItemCount = cart?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;

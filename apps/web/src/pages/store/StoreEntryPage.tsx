@@ -30,11 +30,29 @@ export default function StoreEntryPage() {
 
   const qrCodeId = searchParams.get('qr');
 
-  // Initialize session from QR code
+  // Initialize session from QR code or demo mode
   useEffect(() => {
     async function initSession() {
+      // Demo mode when no QR code is provided
       if (!qrCodeId) {
-        setError('Invalid QR code. Please scan again.');
+        // Create a demo store session
+        const demoStore = {
+          id: 'demo-store',
+          name: 'MirrorX Demo Store',
+          city: 'Mumbai',
+          state: 'Maharashtra',
+          logo_url: '',
+          banner_url: '',
+          theme_primary: '#6366f1',
+          theme_secondary: '#8b5cf6',
+        };
+
+        setSession(
+          'demo-session-token',
+          { id: 'demo-qr', store_id: 'demo-store' } as any,
+          demoStore as any,
+          []
+        );
         setStep('welcome');
         return;
       }
