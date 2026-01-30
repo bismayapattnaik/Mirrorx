@@ -811,4 +811,511 @@ export const storeStaffApi = {
   },
 };
 
+// ==========================================
+// Merchant Portal API (B2B Management)
+// ==========================================
+
+// Merchant API key management
+let merchantApiKey: string | null = null;
+
+export function setMerchantApiKey(key: string | null) {
+  merchantApiKey = key;
+  if (key) {
+    localStorage.setItem('mirrorx_merchant_api_key', key);
+  } else {
+    localStorage.removeItem('mirrorx_merchant_api_key');
+  }
+}
+
+export function getMerchantApiKey(): string | null {
+  if (!merchantApiKey) {
+    merchantApiKey = localStorage.getItem('mirrorx_merchant_api_key');
+  }
+  return merchantApiKey;
+}
+
+async function fetchWithMerchantAuth<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const apiKey = getMerchantApiKey();
+
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  if (apiKey) {
+    (headers as Record<string, string>)['X-Merchant-API-Key'] = apiKey;
+  }
+
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Request failed' }));
+    throw new ApiError(response.status, error.message || 'Request failed', error.details);
+  }
+
+  return response.json();
+}
+
+export interface MerchantStore extends Store {
+  metrics?: {
+    todaySessions: number;
+    todayTryOns: number;
+    todayOrders: number;
+    todayRevenue: number;
+    conversionRate: number;
+  };
+}
+
+export interface StoreAnalytics {
+  totalSessions: number;
+  totalTryOns: number;
+  totalOrders: number;
+  totalRevenue: number;
+  avgOrderValue: number;
+  conversionRate: number;
+  sessionsTrend: number;
+  tryOnsTrend: number;
+  ordersTrend: number;
+  revenueTrend: number;
+  dailyMetrics: Array<{
+    date: string;
+    sessions: number;
+    tryons: number;
+    orders: number;
+    revenue: number;
+  }>;
+  topProducts: Array<{
+    id: string;
+    name: string;
+    tryons: number;
+    orders: number;
+    revenue: number;
+  }>;
+  funnelData: {
+    scans: number;
+    sessions: number;
+    tryons: number;
+    addToCart: number;
+    checkout: number;
+    paid: number;
+  };
+}
+
+export interface ProductImportRow {
+  sku: string;
+  name: string;
+  brand?: string;
+  category?: string;
+  gender?: string;
+  price: number;
+  original_price?: number;
+  image_url: string;
+  additional_images?: string[];
+  sizes?: string[];
+  colors?: string[];
+  material?: string;
+  care_instructions?: string;
+  stock_quantity?: number;
+  zone_id?: string;
+  aisle?: string;
+  row?: string;
+  shelf?: string;
+  rack?: string;
+}
+
+export interface StoreStaffMember {
+  id: string;
+  store_id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: 'ADMIN' | 'MANAGER' | 'ASSOCIATE' | 'CASHIER';
+  is_active: boolean;
+  last_login_at?: string;
+  created_at: string;
+}
+
+export interface GeneratedQRCode {
+  id: string;
+  store_id: string;
+  qr_type: 'store' | 'zone' | 'product';
+  reference_id: string;
+  qr_code_id: string;
+  deep_link_url: string;
+  short_code: string;
+  qr_data_url: string;
+  is_active: boolean;
+}
+
+export const merchantApi = {
+  // Authentication
+  login: async (
+    email: string,
+    password: string
+  ): Promise<{
+    merchant: {
+      id: string;
+      name: string;
+      email: string;
+      company_name: string;
+    };
+    api_key: string;
+    stores: MerchantStore[];
+  }> => {
+    const response = await fetch(`${API_BASE}/merchant/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Login failed' }));
+      throw new ApiError(response.status, error.message);
+    }
+
+    const data = await response.json();
+    setMerchantApiKey(data.api_key);
+    return data;
+  },
+
+  logout: () => {
+    setMerchantApiKey(null);
+  },
+
+  // Store Management
+  getStores: async (): Promise<{ stores: MerchantStore[] }> => {
+    return fetchWithMerchantAuth('/merchant/stores');
+  },
+
+  createStore: async (storeData: {
+    name: string;
+    slug?: string;
+    address: string;
+    city: string;
+    state: string;
+    pincode: string;
+    phone: string;
+    email?: string;
+    logo_url?: string;
+    banner_url?: string;
+    opening_hours?: Record<string, { open: string; close: string }>;
+    settings?: {
+      guest_checkout_enabled?: boolean;
+      selfie_required?: boolean;
+      tryon_enabled?: boolean;
+      default_pickup_time_minutes?: number;
+    };
+  }): Promise<{ store: MerchantStore }> => {
+    return fetchWithMerchantAuth('/merchant/stores', {
+      method: 'POST',
+      body: JSON.stringify(storeData),
+    });
+  },
+
+  updateStore: async (
+    storeId: string,
+    updates: Partial<Store>
+  ): Promise<{ store: MerchantStore }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  // Zone Management
+  getZones: async (storeId: string): Promise<{ zones: StoreZone[] }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/zones`);
+  },
+
+  createZone: async (
+    storeId: string,
+    zoneData: {
+      name: string;
+      slug?: string;
+      description?: string;
+      floor?: string;
+      section?: string;
+      category?: string;
+      image_url?: string;
+    }
+  ): Promise<{ zone: StoreZone; qr_code: GeneratedQRCode }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/zones`, {
+      method: 'POST',
+      body: JSON.stringify(zoneData),
+    });
+  },
+
+  updateZone: async (
+    storeId: string,
+    zoneId: string,
+    updates: Partial<StoreZone>
+  ): Promise<{ zone: StoreZone }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/zones/${zoneId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  deleteZone: async (storeId: string, zoneId: string): Promise<{ success: boolean }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/zones/${zoneId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Product Management
+  getProducts: async (
+    storeId: string,
+    params?: {
+      zone_id?: string;
+      category?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    }
+  ): Promise<{
+    products: (StoreProduct & { location?: StorePlanogram })[];
+    total: number;
+    page: number;
+    limit: number;
+  }> => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    const query = searchParams.toString();
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/products${query ? `?${query}` : ''}`);
+  },
+
+  createProduct: async (
+    storeId: string,
+    productData: Omit<ProductImportRow, 'sku'> & { sku?: string }
+  ): Promise<{ product: StoreProduct }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/products`, {
+      method: 'POST',
+      body: JSON.stringify(productData),
+    });
+  },
+
+  updateProduct: async (
+    storeId: string,
+    productId: string,
+    updates: Partial<StoreProduct>
+  ): Promise<{ product: StoreProduct }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/products/${productId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  deleteProduct: async (storeId: string, productId: string): Promise<{ success: boolean }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/products/${productId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Bulk Product Import (CSV)
+  importProducts: async (
+    storeId: string,
+    products: ProductImportRow[]
+  ): Promise<{
+    success: boolean;
+    imported_count: number;
+    failed_count: number;
+    errors: Array<{ row: number; sku: string; error: string }>;
+  }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/products/import`, {
+      method: 'POST',
+      body: JSON.stringify({ products }),
+    });
+  },
+
+  // Staff Management
+  getStaff: async (storeId: string): Promise<{ staff: StoreStaffMember[] }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/staff`);
+  },
+
+  addStaff: async (
+    storeId: string,
+    staffData: {
+      name: string;
+      email: string;
+      phone?: string;
+      role: 'ADMIN' | 'MANAGER' | 'ASSOCIATE' | 'CASHIER';
+      pin: string;
+    }
+  ): Promise<{ staff: StoreStaffMember }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/staff`, {
+      method: 'POST',
+      body: JSON.stringify(staffData),
+    });
+  },
+
+  updateStaff: async (
+    storeId: string,
+    staffId: string,
+    updates: Partial<StoreStaffMember> & { pin?: string }
+  ): Promise<{ staff: StoreStaffMember }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/staff/${staffId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  removeStaff: async (storeId: string, staffId: string): Promise<{ success: boolean }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/staff/${staffId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // QR Code Generation
+  generateQRCodes: async (
+    storeId: string,
+    options: {
+      qr_type: 'store' | 'zone' | 'product';
+      reference_ids?: string[];
+      include_all?: boolean;
+    }
+  ): Promise<{ qr_codes: GeneratedQRCode[] }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/qr-codes/generate`, {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+
+  getQRCodes: async (
+    storeId: string,
+    params?: {
+      qr_type?: 'store' | 'zone' | 'product';
+    }
+  ): Promise<{ qr_codes: GeneratedQRCode[] }> => {
+    const searchParams = new URLSearchParams();
+    if (params?.qr_type) {
+      searchParams.append('qr_type', params.qr_type);
+    }
+    const query = searchParams.toString();
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/qr-codes${query ? `?${query}` : ''}`);
+  },
+
+  // Analytics
+  getAnalytics: async (
+    storeId: string,
+    params?: {
+      start_date?: string;
+      end_date?: string;
+      period?: 'today' | 'week' | 'month' | 'custom';
+    }
+  ): Promise<StoreAnalytics> => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    const query = searchParams.toString();
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/analytics${query ? `?${query}` : ''}`);
+  },
+
+  // Orders
+  getOrders: async (
+    storeId: string,
+    params?: {
+      status?: string;
+      start_date?: string;
+      end_date?: string;
+      page?: number;
+      limit?: number;
+    }
+  ): Promise<{
+    orders: StoreOrder[];
+    total: number;
+    page: number;
+    limit: number;
+  }> => {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    const query = searchParams.toString();
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/orders${query ? `?${query}` : ''}`);
+  },
+
+  // Coupons
+  getCoupons: async (storeId: string): Promise<{ coupons: StoreCoupon[] }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/coupons`);
+  },
+
+  createCoupon: async (
+    storeId: string,
+    couponData: {
+      code: string;
+      description?: string;
+      discount_type: 'percentage' | 'fixed';
+      discount_value: number;
+      min_order_amount?: number;
+      max_discount?: number;
+      usage_limit?: number;
+      per_user_limit?: number;
+      valid_from?: string;
+      valid_until?: string;
+    }
+  ): Promise<{ coupon: StoreCoupon }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/coupons`, {
+      method: 'POST',
+      body: JSON.stringify(couponData),
+    });
+  },
+
+  updateCoupon: async (
+    storeId: string,
+    couponId: string,
+    updates: Partial<StoreCoupon>
+  ): Promise<{ coupon: StoreCoupon }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/coupons/${couponId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  deleteCoupon: async (storeId: string, couponId: string): Promise<{ success: boolean }> => {
+    return fetchWithMerchantAuth(`/merchant/stores/${storeId}/coupons/${couponId}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// StoreCoupon type for coupons
+export interface StoreCoupon {
+  id: string;
+  store_id: string;
+  code: string;
+  description?: string;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  min_order_amount?: number;
+  max_discount?: number;
+  usage_limit?: number;
+  usage_count: number;
+  per_user_limit?: number;
+  valid_from?: string;
+  valid_until?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export { ApiError };
