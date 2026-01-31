@@ -2,12 +2,13 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Camera, Sparkles, ChevronRight, X, Loader2,
-  ShoppingBag, ArrowLeft, Check, Grid, Shirt, User
+  ShoppingBag, ArrowLeft, Check, Grid, Shirt, User, Video
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import QRCode from 'qrcode';
+import Avatar3DTryOn from '@/components/Avatar3DTryOn';
 
 // BBA Cloths Demo Inventory - 25 Items
 const BBA_INVENTORY = [
@@ -83,6 +84,7 @@ export default function BBAClothsDemo() {
   const [tryAllMode, setTryAllMode] = useState(false);
   const [tryAllProgress, setTryAllProgress] = useState(0);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [show3DTryOn, setShow3DTryOn] = useState(false);
 
   const filteredProducts = selectedCategory === 'all'
     ? BBA_INVENTORY
@@ -556,15 +558,24 @@ export default function BBAClothsDemo() {
           </div>
         </div>
 
-        {/* Try All Button */}
-        <Button
-          onClick={handleTryAll}
-          disabled={isProcessing || tryAllMode}
-          className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl font-semibold"
-        >
-          <Sparkles className="w-4 h-4 mr-2" />
-          Try All Items On Me
-        </Button>
+        {/* Try On Buttons */}
+        <div className="flex gap-2">
+          <Button
+            onClick={handleTryAll}
+            disabled={isProcessing || tryAllMode}
+            className="flex-1 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl font-semibold"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            Try All (AI)
+          </Button>
+          <Button
+            onClick={() => setShow3DTryOn(true)}
+            className="flex-1 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white rounded-xl font-semibold"
+          >
+            <Video className="w-4 h-4 mr-2" />
+            3D Live Try-On
+          </Button>
+        </div>
       </div>
 
       {/* Categories */}
@@ -750,6 +761,15 @@ export default function BBAClothsDemo() {
     </motion.div>
   );
 
+  // Convert inventory to Avatar3DTryOn format
+  const clothingForAvatar = filteredProducts.map(p => ({
+    id: p.id,
+    name: p.name,
+    image: p.image,
+    category: p.category,
+    price: p.price,
+  }));
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-midnight via-midnight to-amber-950/20 flex flex-col">
       <AnimatePresence mode="wait">
@@ -760,6 +780,17 @@ export default function BBAClothsDemo() {
         {step === 'trying' && renderTryingStep()}
         {step === 'gallery' && renderGalleryStep()}
       </AnimatePresence>
+
+      {/* 3D Avatar Try-On Modal */}
+      <Avatar3DTryOn
+        isOpen={show3DTryOn}
+        onClose={() => setShow3DTryOn(false)}
+        clothing={clothingForAvatar}
+        onAddToCart={(item) => {
+          toast({ title: 'Added to cart', description: `${item.name} added!` });
+          setShow3DTryOn(false);
+        }}
+      />
     </div>
   );
 }
