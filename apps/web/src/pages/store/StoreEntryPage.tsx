@@ -35,25 +35,8 @@ export default function StoreEntryPage() {
     async function initSession() {
       // Demo mode when no QR code is provided
       if (!qrCodeId) {
-        // Create a demo store session
-        const demoStore = {
-          id: 'demo-store',
-          name: 'MirrorX Demo Store',
-          city: 'Mumbai',
-          state: 'Maharashtra',
-          logo_url: '',
-          banner_url: '',
-          theme_primary: '#6366f1',
-          theme_secondary: '#8b5cf6',
-        };
-
-        setSession(
-          'demo-session-token',
-          { id: 'demo-qr', store_id: 'demo-store' } as any,
-          demoStore as any,
-          []
-        );
-        setStep('welcome');
+        // Redirect to BBA Cloths demo for a better experience
+        navigate('/demo/bba-cloths');
         return;
       }
 
