@@ -39,6 +39,9 @@ import MerchantAnalyticsPage from '@/pages/merchant/MerchantAnalyticsPage';
 import StaffLoginPage from '@/pages/staff/StaffLoginPage';
 import StaffDashboardPage from '@/pages/staff/StaffDashboardPage';
 
+// Demo Pages
+import BBAClothsDemo from '@/pages/demo/BBAClothsDemo';
+
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -158,6 +161,9 @@ export default function App() {
         <Route path="/staff/login" element={<StaffLoginPage />} />
         <Route path="/staff" element={<StaffDashboardPage />} />
         <Route path="/staff/dashboard" element={<StaffDashboardPage />} />
+
+        {/* Demo Pages */}
+        <Route path="/demo/bba-cloths" element={<BBAClothsDemo />} />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />

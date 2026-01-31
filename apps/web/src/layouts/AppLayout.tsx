@@ -11,6 +11,7 @@ import {
   CreditCard,
   ChevronDown,
   Users,
+  Store,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ const navItems = [
   { path: '/app/tryon', label: 'Try On', icon: Sparkles },
   { path: '/app/wardrobe', label: 'Wardrobe', icon: Shirt },
   { path: '/app/feed', label: 'Shop Together', icon: Users },
+  { path: '/store', label: 'Store', icon: Store },
   { path: '/app/account', label: 'Account', icon: User },
 ];
 
