@@ -48,7 +48,30 @@ export default function Avatar3DTryOn({ isOpen, onClose, clothing, onAddToCart }
   const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
 
+  // Clothing image ref for overlay
+  const clothingImageRef = useRef<HTMLImageElement | null>(null);
+  const [clothingImageLoaded, setClothingImageLoaded] = useState(false);
+
   const currentClothing = clothing[currentClothingIndex];
+
+  // Load clothing image when it changes
+  useEffect(() => {
+    if (currentClothing?.image) {
+      setClothingImageLoaded(false);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        clothingImageRef.current = img;
+        setClothingImageLoaded(true);
+      };
+      img.onerror = () => {
+        console.error('Failed to load clothing image:', currentClothing.image);
+        clothingImageRef.current = null;
+        setClothingImageLoaded(false);
+      };
+      img.src = currentClothing.image;
+    }
+  }, [currentClothing?.image]);
 
   // Initialize MediaPipe
   const initializeMediaPipe = useCallback(async () => {
@@ -265,7 +288,7 @@ export default function Avatar3DTryOn({ isOpen, onClose, clothing, onAddToCart }
     };
 
     detect();
-  }, [isCameraOn, trackingMode, showClothing, currentClothing]);
+  }, [isCameraOn, trackingMode, showClothing, currentClothing, clothingImageLoaded]);
 
   // Draw clothing overlay on detected body
   const drawClothingOverlay = (
@@ -299,47 +322,97 @@ export default function Avatar3DTryOn({ isOpen, onClose, clothing, onAddToCart }
     const centerX = ((leftShoulder.x + rightShoulder.x) / 2) * width;
     const topY = Math.min(leftShoulder.y, rightShoulder.y) * height;
 
-    // Expand the clothing area
-    const clothingWidth = shoulderWidth * 1.8;
-    const clothingHeight = torsoHeight * 1.4;
+    // Expand the clothing area for better coverage
+    const clothingWidth = shoulderWidth * 2.2;
+    const clothingHeight = torsoHeight * 1.5;
 
-    // Draw semi-transparent clothing preview
+    // Calculate the top-left position for drawing
+    const drawX = centerX - clothingWidth / 2;
+    const drawY = topY - clothingHeight * 0.15; // Shift up slightly to cover neckline
+
     ctx.save();
-    ctx.globalAlpha = 0.7;
 
-    // Create gradient overlay effect
-    const gradient = ctx.createLinearGradient(
-      centerX - clothingWidth / 2,
-      topY - 20,
-      centerX + clothingWidth / 2,
-      topY + clothingHeight
-    );
-    gradient.addColorStop(0, 'rgba(99, 102, 241, 0.6)');
-    gradient.addColorStop(0.5, 'rgba(139, 92, 246, 0.5)');
-    gradient.addColorStop(1, 'rgba(99, 102, 241, 0.3)');
+    // Draw the actual clothing image if loaded
+    if (clothingImageRef.current && clothingImageLoaded) {
+      ctx.globalAlpha = 0.85;
 
-    // Draw clothing shape (simplified torso outline)
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.moveTo(centerX - clothingWidth / 2 - 20, topY - 10);
-    ctx.lineTo(centerX + clothingWidth / 2 + 20, topY - 10);
-    ctx.lineTo(centerX + clothingWidth / 2 + 10, topY + clothingHeight);
-    ctx.lineTo(centerX - clothingWidth / 2 - 10, topY + clothingHeight);
-    ctx.closePath();
-    ctx.fill();
+      // Create a clipping path shaped like the torso for more natural fit
+      ctx.beginPath();
+      // Neck area (narrower)
+      const neckWidth = clothingWidth * 0.3;
+      ctx.moveTo(centerX - neckWidth / 2, drawY);
+      ctx.lineTo(centerX + neckWidth / 2, drawY);
+      // Right shoulder
+      ctx.lineTo(centerX + clothingWidth / 2, drawY + clothingHeight * 0.1);
+      // Right arm area
+      ctx.lineTo(centerX + clothingWidth / 2 + 20, drawY + clothingHeight * 0.25);
+      ctx.lineTo(centerX + clothingWidth / 2, drawY + clothingHeight * 0.35);
+      // Right side
+      ctx.lineTo(centerX + clothingWidth / 2 - 10, drawY + clothingHeight);
+      // Bottom
+      ctx.lineTo(centerX - clothingWidth / 2 + 10, drawY + clothingHeight);
+      // Left side
+      ctx.lineTo(centerX - clothingWidth / 2, drawY + clothingHeight * 0.35);
+      // Left arm area
+      ctx.lineTo(centerX - clothingWidth / 2 - 20, drawY + clothingHeight * 0.25);
+      ctx.lineTo(centerX - clothingWidth / 2, drawY + clothingHeight * 0.1);
+      // Back to neck
+      ctx.lineTo(centerX - neckWidth / 2, drawY);
+      ctx.closePath();
+      ctx.clip();
 
-    // Draw clothing border
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+      // Draw the clothing image
+      ctx.drawImage(
+        clothingImageRef.current,
+        drawX,
+        drawY,
+        clothingWidth,
+        clothingHeight
+      );
 
-    // Draw clothing name
+      // Add subtle border for definition
+      ctx.globalAlpha = 0.4;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    } else {
+      // Fallback: Draw placeholder with gradient if image not loaded
+      ctx.globalAlpha = 0.6;
+      const gradient = ctx.createLinearGradient(
+        centerX - clothingWidth / 2,
+        topY - 20,
+        centerX + clothingWidth / 2,
+        topY + clothingHeight
+      );
+      gradient.addColorStop(0, 'rgba(99, 102, 241, 0.7)');
+      gradient.addColorStop(0.5, 'rgba(139, 92, 246, 0.6)');
+      gradient.addColorStop(1, 'rgba(99, 102, 241, 0.4)');
+
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.moveTo(centerX - clothingWidth / 2 - 20, topY - 10);
+      ctx.lineTo(centerX + clothingWidth / 2 + 20, topY - 10);
+      ctx.lineTo(centerX + clothingWidth / 2 + 10, topY + clothingHeight);
+      ctx.lineTo(centerX - clothingWidth / 2 - 10, topY + clothingHeight);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    ctx.restore();
+
+    // Draw clothing name below
+    ctx.save();
     ctx.globalAlpha = 1;
     ctx.fillStyle = 'white';
     ctx.font = 'bold 16px system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText(currentClothing?.name || '', centerX, topY + clothingHeight + 25);
-
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 4;
+    ctx.fillText(currentClothing?.name || '', centerX, drawY + clothingHeight + 30);
     ctx.restore();
   };
 

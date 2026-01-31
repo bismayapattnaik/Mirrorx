@@ -691,4 +691,132 @@ router.post(
   }
 );
 
+// ==========================================
+// DEMO/GUEST TRY-ON (No Auth Required)
+// For demo pages like BBA Cloths Demo
+// ==========================================
+
+// Simple in-memory rate limiting for demo (IP-based)
+const demoRateLimits = new Map<string, { count: number; resetTime: number }>();
+const DEMO_LIMIT_PER_HOUR = 10;
+const DEMO_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
+
+function checkDemoRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = demoRateLimits.get(ip);
+
+  if (!record || now > record.resetTime) {
+    demoRateLimits.set(ip, { count: 1, resetTime: now + DEMO_LIMIT_WINDOW });
+    return true;
+  }
+
+  if (record.count >= DEMO_LIMIT_PER_HOUR) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
+// POST /tryon/demo - Demo try-on (no auth required, rate limited)
+router.post(
+  '/demo',
+  upload.fields([
+    { name: 'selfie_image', maxCount: 1 },
+    { name: 'product_image', maxCount: 1 },
+  ]),
+  async (req, res: Response) => {
+    const startTime = Date.now();
+    const jobId = uuidv4();
+
+    try {
+      // Rate limiting
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      if (!checkDemoRateLimit(clientIp)) {
+        return res.status(429).json({
+          error: 'Rate limit exceeded',
+          message: 'Demo try-on limit reached. Please try again later or sign up for unlimited access.',
+        });
+      }
+
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      const selfieFile = files['selfie_image']?.[0];
+      const productFile = files['product_image']?.[0];
+      const { mode = 'PART', gender = 'female' } = req.body;
+      const validGender = gender === 'male' ? 'male' : 'female';
+
+      if (!selfieFile) {
+        return res.status(400).json({
+          error: 'Missing image',
+          message: 'Selfie image is required',
+        });
+      }
+
+      if (!productFile) {
+        return res.status(400).json({
+          error: 'Missing product',
+          message: 'Product image is required',
+        });
+      }
+
+      // Process images
+      const selfieBase64 = await processImage(selfieFile.buffer);
+      const productBase64 = await processImage(productFile.buffer);
+
+      console.log(`Demo try-on request from ${clientIp}, mode: ${mode}, gender: ${validGender}`);
+
+      // Generate try-on image with Gemini
+      let resultImage: string;
+      try {
+        resultImage = await generateTryOnImage(
+          selfieBase64,
+          productBase64,
+          mode,
+          validGender
+        );
+
+        // Validate the result image
+        if (!resultImage || !resultImage.startsWith('data:image/')) {
+          throw new Error('Generated image has invalid format');
+        }
+
+        const base64Part = resultImage.split(',')[1];
+        if (!base64Part || base64Part.length < 1000) {
+          throw new Error('Generated image data is incomplete');
+        }
+
+        // Validate image content isn't black/empty
+        const isValidImage = await validateGeneratedImage(resultImage);
+        if (!isValidImage) {
+          throw new Error('Generated image is invalid. Please try again with different photos.');
+        }
+
+        console.log(`Demo try-on successful, result length: ${resultImage.length}`);
+      } catch (genError) {
+        console.error('Demo try-on generation failed:', genError);
+        return res.status(500).json({
+          error: 'Generation failed',
+          message: (genError as Error).message || 'Failed to generate try-on image. Please try again.',
+        });
+      }
+
+      const processingTime = Date.now() - startTime;
+
+      res.json({
+        job_id: jobId,
+        status: 'SUCCEEDED',
+        result_image_url: resultImage,
+        processing_time_ms: processingTime,
+        demo: true,
+      });
+    } catch (error) {
+      console.error('Demo try-on error:', error);
+      res.status(500).json({
+        error: 'Server error',
+        message: (error as Error).message || 'Please try again.',
+      });
+    }
+  }
+);
+
 export default router;
