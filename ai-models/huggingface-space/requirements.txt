@@ -1,0 +1,29 @@
+# MirrorX Zero-Cost Virtual Try-On
+# Deploy to Hugging Face Spaces
+
+# Core ML
+torch>=2.0.0
+torchvision>=0.15.0
+transformers>=4.35.0
+diffusers>=0.24.0
+accelerate>=0.25.0
+
+# OOTDiffusion (Apache 2.0 License)
+# Install from: pip install git+https://github.com/levihsu/OOTDiffusion.git
+ootdiffusion @ git+https://github.com/levihsu/OOTDiffusion.git
+
+# Face Detection & Preservation (MIT License)
+insightface>=0.7.3
+onnxruntime-gpu>=1.16.0  # Use onnxruntime for CPU-only
+
+# Image Processing
+Pillow>=10.0.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# Web Interface
+gradio>=4.0.0
+
+# Utilities
+requests>=2.31.0
+python-dotenv>=1.0.0
