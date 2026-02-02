@@ -414,17 +414,17 @@ export class HybridTryOnService {
   }> {
     // Import the existing Gemini service
     // This would call the existing gemini.ts service
-    const { generateVirtualTryOn } = await import('./gemini');
+    const { generateTryOnImage } = await import('./gemini');
 
-    const result = await generateVirtualTryOn(
+    const resultImage = await generateTryOnImage(
       personImage,
       clothingImage,
       'PART',
-      'neutral'
+      'female'
     );
 
     return {
-      resultImage: result.image,
+      resultImage,
       source: 'gemini',
       cost: 0.03, // Estimated Gemini cost
     };

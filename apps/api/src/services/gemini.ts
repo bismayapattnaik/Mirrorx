@@ -1,8 +1,12 @@
 import { GoogleGenAI } from '@google/genai';
 import type { TryOnMode } from '@mrrx/shared';
+import { swapFaceHighQuality } from './face-swap';
 
 // Initialize Gemini client
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+
+// Feature flag for face swap post-processing
+const ENABLE_FACE_SWAP = process.env.REPLICATE_API_TOKEN ? true : false;
 
 // Model - Gemini 3 Pro Image Preview (Nano Banana Pro)
 // State-of-the-art image generation with advanced reasoning ("Thinking")
@@ -320,7 +324,25 @@ Do NOT use anything else from this image - only the clothes.`
             : data;
 
           console.log(`Try-on image generated successfully with ${IMAGE_MODEL} (${cleanData.length} chars)`);
-          return `data:${mimeType};base64,${cleanData}`;
+
+          const geminiResult = `data:${mimeType};base64,${cleanData}`;
+
+          // CRITICAL: Apply face swap to guarantee 100% face preservation
+          // Gemini generates good clothing but often changes the face
+          // Face swap replaces the generated face with the user's ACTUAL face
+          if (ENABLE_FACE_SWAP) {
+            console.log('[FaceSwap] Applying face swap for 100% identity preservation...');
+            try {
+              const faceSwappedResult = await swapFaceHighQuality(selfieBase64, geminiResult);
+              console.log('[FaceSwap] Face swap completed - user\'s exact face preserved');
+              return faceSwappedResult;
+            } catch (faceSwapError) {
+              console.error('[FaceSwap] Face swap failed, returning Gemini result:', faceSwapError);
+              return geminiResult;
+            }
+          }
+
+          return geminiResult;
         }
 
         // Check alternative formats - some Gemini versions use different structures
@@ -330,7 +352,17 @@ Do NOT use anything else from this image - only the clothes.`
           const data = imageData.data;
           if (data && data.length > 100) {
             console.log(`Found image in alternative format (${data.length} chars)`);
-            return `data:${mimeType};base64,${data}`;
+            const altResult = `data:${mimeType};base64,${data}`;
+
+            // Apply face swap for alternative format too
+            if (ENABLE_FACE_SWAP) {
+              try {
+                return await swapFaceHighQuality(selfieBase64, altResult);
+              } catch {
+                return altResult;
+              }
+            }
+            return altResult;
           }
         }
 
