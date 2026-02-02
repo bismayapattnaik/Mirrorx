@@ -12,146 +12,149 @@ const TEXT_MODEL = 'gemini-2.0-flash';
 type Gender = 'male' | 'female';
 
 /**
- * System instruction for NATURAL virtual try-on photography
- * Focus on realistic integration, not face pasting
+ * System instruction for virtual try-on with STRICT identity preservation
+ * Balance between exact face matching and natural clothing integration
  */
-const SYSTEM_INSTRUCTION = `You are a professional fashion photographer creating realistic try-on images.
+const SYSTEM_INSTRUCTION = `You are an AI that performs virtual clothing try-on with STRICT IDENTITY PRESERVATION.
 
-YOUR TASK: Re-photograph the person from Image 1 wearing the outfit from Image 2.
-
-Think of this as if you brought the same person into a photo studio, dressed them in the new outfit, and took a fresh photograph. The result should look like a NATURAL photograph, not a composite or collage.
-
-═══════════════════════════════════════════════════════════════════
-                    NATURAL PHOTOGRAPHY APPROACH
-═══════════════════════════════════════════════════════════════════
-
-CRITICAL: Generate a UNIFIED, COHESIVE image where:
-- The person and clothing exist as ONE natural photograph
-- Lighting falls CONSISTENTLY across face, body, and clothing
-- Shadows are natural and unified (face shadow matches body shadow)
-- Skin tones blend naturally from face to neck to any visible body
-- The neck/collar transition looks completely natural
-
-IDENTITY PRESERVATION (the same person, naturally):
-- Maintain the person's unique facial features and proportions
-- Keep their natural skin tone, texture, and complexion
-- Preserve their hair color, style, and texture
-- Keep any distinctive features (moles, facial hair, glasses)
-- The person should be immediately recognizable
-
-WHAT MAKES IT LOOK NATURAL vs FAKE:
-✓ NATURAL: Consistent lighting direction on face AND body
-✓ NATURAL: Face shadows that match the clothing shadows
-✓ NATURAL: Smooth skin tone transition from face to neck to shoulders
-✓ NATURAL: Hair that interacts naturally with collar/neckline
-✓ NATURAL: Face positioned naturally on shoulders (correct neck angle)
-
-✗ FAKE (AVOID): Face lit differently than the body
-✗ FAKE (AVOID): Sharp edge or halo around the face
-✗ FAKE (AVOID): Face skin tone different from neck/body
-✗ FAKE (AVOID): Face floating or disconnected from body
-✗ FAKE (AVOID): No natural neck shadow or collar interaction
+⚠️ MOST IMPORTANT RULE: The face in your output MUST be the EXACT SAME face from Image 1.
+NOT a similar face. NOT a beautified face. NOT a model's face. THE EXACT SAME PERSON.
 
 ═══════════════════════════════════════════════════════════════════
-                    TECHNICAL REQUIREMENTS
+                    STRICT IDENTITY RULES
 ═══════════════════════════════════════════════════════════════════
 
-LIGHTING UNITY:
-- Analyze light direction in Image 1 (where shadows fall)
-- Apply the SAME lighting to the entire output image
-- Face highlights should match body/clothing highlights
-- Shadow intensity should be consistent throughout
+You are performing INPAINTING - you are ONLY changing the clothing.
+The person's face, head, hair, and body structure must remain UNCHANGED.
 
-SKIN CONTINUITY:
-- Face, neck, and any visible skin must be the SAME tone
-- No color shifts at the collar/neckline
-- Natural subsurface scattering at skin edges
+FACE IDENTITY (ABSOLUTE - NO CHANGES ALLOWED):
+- EXACT same face shape (round, oval, square - whatever they have)
+- EXACT same skin tone and complexion (dark, medium, light - keep it)
+- EXACT same nose shape and size
+- EXACT same eyes (shape, size, spacing)
+- EXACT same lips and mouth
+- EXACT same jawline and chin
+- EXACT same forehead
+- EXACT same facial hair (mustache, beard, stubble - if present)
+- EXACT same eyebrows
+- EXACT same hair color, texture, and style
+- EXACT same ears (if visible)
 
-CLOTHING INTEGRATION:
-- Collar sits naturally around the neck
-- Sleeves/fabric interact naturally with body position
-- Wrinkles and draping follow the body's natural form
-- Fabric texture is consistent throughout
+DO NOT:
+❌ Make the person look like a fashion model
+❌ Lighten or darken their skin
+❌ Change their face shape to be more "attractive"
+❌ Smooth their skin or remove natural texture
+❌ Change their hair style or color
+❌ Make them look younger or older
+❌ Change their body proportions
+❌ Use a generic/stock face
+❌ Beautify or enhance any feature
 
-OUTPUT:
-- Professional fashion photography quality
-- Single cohesive photograph (NOT a composite)
-- The person naturally wearing the new outfit`;
+The person in Image 1 is a REAL PERSON. They want to see THEMSELVES in the clothes.
+If you change their face, the result is USELESS to them.
+
+═══════════════════════════════════════════════════════════════════
+                    CLOTHING CHANGE ONLY
+═══════════════════════════════════════════════════════════════════
+
+WHAT YOU CAN CHANGE:
+✓ The clothing/outfit only
+✓ How the fabric drapes on their body
+✓ Shadows cast by the new clothing
+
+WHAT MUST STAY IDENTICAL:
+✓ Their face (every feature)
+✓ Their skin tone (face AND body)
+✓ Their hair
+✓ Their body shape/proportions
+✓ Their pose (similar to original)
+
+═══════════════════════════════════════════════════════════════════
+                    NATURAL INTEGRATION
+═══════════════════════════════════════════════════════════════════
+
+While preserving identity, ensure:
+- Lighting is consistent across face and clothing
+- Skin tone matches from face to neck to body
+- The collar/neckline sits naturally
+- No "pasted on" appearance - it should look like one photograph
+
+OUTPUT: The SAME person from Image 1, wearing the clothes from Image 2.`;
 
 /**
  * Build the try-on prompt based on mode
- * Uses natural photography language for realistic integration
+ * STRICT identity preservation with natural clothing integration
  */
 const buildTryOnPrompt = (gender: Gender, mode: TryOnMode): string => {
   const person = gender === 'female' ? 'woman' : 'man';
   const pronoun = gender === 'female' ? 'her' : 'his';
 
   const modeInstructions = mode === 'FULL_FIT'
-    ? `Create a complete styled look with this garment as the centerpiece.`
-    : `Show this ${person} wearing ONLY the specific garment from Image 2.`;
+    ? `Apply a complete styled look with this garment as centerpiece.`
+    : `Apply ONLY the specific garment from Image 2.`;
 
-  return `══════════════════════════════════════════════════════════════
-                    VIRTUAL TRY-ON PHOTOGRAPHY
-══════════════════════════════════════════════════════════════
-
-Create a NATURAL photograph of this ${person} wearing the outfit.
-
-IMAGE 1 = The person (reference for identity and body)
-IMAGE 2 = The clothing to put on them
-
-YOUR GOAL: Generate what this ${person} would look like in a real photo
-wearing this outfit. The result should look like a genuine photograph
-taken in a studio - NOT like a face pasted onto a body.
-
-═══════════════════════════════════════════════════════════════
-                    KEY REQUIREMENTS
+  return `═══════════════════════════════════════════════════════════════
+                    ⚠️ IDENTITY-LOCKED TRY-ON ⚠️
 ═══════════════════════════════════════════════════════════════
 
-1. UNIFIED LIGHTING
-   - Light must fall the SAME way on face, neck, and clothing
-   - If there's a shadow on the left cheek, there should be shadow on left shoulder
-   - No "spotlight on face" effect - everything lit consistently
+TASK: Show the EXACT person from Image 1 wearing clothes from Image 2.
 
-2. SEAMLESS SKIN CONTINUITY
-   - Face skin tone = neck skin tone = any visible body
-   - NO color difference at the collar/neckline
-   - Natural gradual transitions, no hard edges
+🔒 THE FACE IS LOCKED - DO NOT MODIFY IT 🔒
 
-3. NATURAL NECK & COLLAR AREA
-   - This is the most critical area for realism
-   - The neck must connect naturally to the shoulders
-   - Collar/neckline sits properly around the neck
-   - Hair falls naturally over or around the collar
+Study the person in Image 1 carefully. Note:
+• Their exact face shape
+• Their exact skin tone (preserve it exactly)
+• Their exact nose, eyes, lips, jawline
+• Their exact hair color and style
+• Any facial hair, moles, or unique features
 
-4. IDENTITY PRESERVATION
-   - Same face structure, features, and proportions
-   - Same skin complexion and texture
-   - Same hair color and style
-   - Same glasses if wearing any
-   - Recognizably the same person
+Now generate an image where THIS EXACT PERSON is wearing the new outfit.
 
 ═══════════════════════════════════════════════════════════════
-                    CLOTHING APPLICATION
+                    WHAT MUST BE IDENTICAL
 ═══════════════════════════════════════════════════════════════
 
+The output face must match Image 1 so precisely that:
+- A facial recognition system would confirm it's the same person
+- Their family would instantly recognize them
+- They could use it as a profile photo
+
+PRESERVE EXACTLY:
+✓ Face shape and proportions
+✓ Skin tone and complexion (VERY IMPORTANT - keep the exact shade)
+✓ All facial features (eyes, nose, mouth, chin)
+✓ Hair color, texture, and style
+✓ Facial hair if present
+✓ Expression/mood
+
+═══════════════════════════════════════════════════════════════
+                    WHAT TO CHANGE
+═══════════════════════════════════════════════════════════════
+
+ONLY change the clothing:
 ${modeInstructions}
 
-- Fabric drapes naturally on ${pronoun} body shape
-- Wrinkles and folds look realistic
-- Size appears correct for ${pronoun} frame
-- Clothing matches the style from Image 2 exactly
+- Apply the garment naturally on ${pronoun} body
+- Keep ${pronoun} body proportions from Image 1
+- Natural fabric draping and shadows
+- Consistent lighting across face and clothing
 
 ═══════════════════════════════════════════════════════════════
-                    FINAL CHECK
+                    COMMON MISTAKES TO AVOID
 ═══════════════════════════════════════════════════════════════
 
-Before outputting, verify:
-□ Does the face look CONNECTED to the body (not pasted on)?
-□ Is lighting CONSISTENT across the entire image?
-□ Does skin tone match from face to neck to body?
-□ Would this pass as a real photograph?
+❌ DO NOT generate a "similar looking" person
+❌ DO NOT use a stock model face
+❌ DO NOT lighten or change skin tone
+❌ DO NOT beautify or enhance features
+❌ DO NOT change the face shape
+❌ DO NOT change hair color or style
 
-Generate a natural, realistic try-on photograph now.`;
+The user wants to see THEMSELVES - not a prettier version, not a model.
+Keep their EXACT appearance. Only change the clothes.
+
+Generate the image now - same person, new clothes.`;
 };
 
 /**
@@ -188,11 +191,11 @@ export async function generateTryOnImage(
 
     const prompt = buildTryOnPrompt(gender, mode);
 
-    console.log(`Generating try-on with ${IMAGE_MODEL} (natural photography mode)...`);
+    console.log(`Generating try-on with ${IMAGE_MODEL} (strict identity preservation)...`);
     console.log(`Selfie size: ${cleanSelfie.length} chars, Product size: ${cleanProduct.length} chars`);
 
     // Generate with Gemini Image Model
-    // Using natural photography approach for realistic integration
+    // Using strict identity preservation with clothing-only modification
     const response = await client.models.generateContent({
       model: IMAGE_MODEL,
       contents: [
@@ -200,17 +203,23 @@ export async function generateTryOnImage(
           role: 'user',
           parts: [
             {
-              text: `📸 THE PERSON (Image 1):
+              text: `🔒 IMAGE 1 - THE PERSON (IDENTITY LOCKED - DO NOT CHANGE)
 
-This is the person who will be wearing the outfit.
-Note their:
-- Face and unique features
-- Skin tone and complexion
-- Hair color and style
-- Body proportions
-- Any glasses or accessories
+This is the person. Their face MUST appear EXACTLY the same in your output.
 
-The output should show THIS SAME PERSON naturally photographed in new clothes.`
+MEMORIZE these features - they must be IDENTICAL in output:
+• Face shape: Study the exact shape of their face
+• Skin tone: Note the EXACT shade - preserve it precisely
+• Eyes: Shape, size, color, spacing
+• Nose: Shape, size, bridge width
+• Mouth: Lip shape, thickness
+• Jawline: Shape of jaw and chin
+• Hair: Color, texture, style, length
+• Facial hair: If any mustache/beard, keep it exactly
+• Any moles, marks, or unique features
+
+⚠️ If the output face looks different, you have FAILED the task.
+The person MUST be able to recognize themselves.`
             },
             {
               inlineData: {
@@ -219,16 +228,16 @@ The output should show THIS SAME PERSON naturally photographed in new clothes.`
               },
             },
             {
-              text: `👔 THE OUTFIT (Image 2):
+              text: `👔 IMAGE 2 - THE CLOTHING (ONLY THING TO CHANGE)
 
-This is the clothing to dress them in.
-Note the:
-- Garment type and style
-- Fabric color and pattern
-- Texture and material
-- Design details
+Extract ONLY the clothing from this image:
+• Garment type and style
+• Fabric color and pattern
+• Texture and material
+• Design details
 
-Apply this outfit onto the person, as if they tried it on and you photographed them.`
+Apply this clothing onto the person from Image 1.
+Do NOT use anything else from this image - only the clothes.`
             },
             {
               inlineData: {
