@@ -91,9 +91,6 @@ const Carousel3D = () => {
   const [activeIndex, setActiveIndex] = useState(0);
   const totalItems = showcaseExamples.length;
 
-  // Duplicate items for seamless infinite scroll
-  const duplicatedItems = [...showcaseExamples, ...showcaseExamples, ...showcaseExamples];
-
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % totalItems);
@@ -104,11 +101,10 @@ const Carousel3D = () => {
 
   // Calculate position and styling for each card
   const getCardStyle = (index: number) => {
-    const centerOffset = totalItems; // Start from middle set
-    const relativeIndex = (index - centerOffset - activeIndex + totalItems) % totalItems;
+    // Calculate relative position from active index
+    let position = index - activeIndex;
 
-    // Normalize to -2 to +2 range for visible cards
-    let position = relativeIndex;
+    // Wrap around for infinite effect
     if (position > totalItems / 2) position -= totalItems;
     if (position < -totalItems / 2) position += totalItems;
 
@@ -116,13 +112,14 @@ const Carousel3D = () => {
     const isVisible = Math.abs(position) <= 2;
 
     // Calculate transforms based on position
-    const translateX = position * 280; // Card width + gap
-    const scale = isCenter ? 1 : Math.max(0.7, 1 - Math.abs(position) * 0.15);
-    const opacity = isCenter ? 1 : Math.max(0.3, 1 - Math.abs(position) * 0.35);
+    const translateX = position * 300; // Card width + gap
+    const scale = isCenter ? 1.1 : Math.max(0.75, 1 - Math.abs(position) * 0.12);
+    const opacity = isCenter ? 1 : Math.max(0.4, 1 - Math.abs(position) * 0.3);
     const zIndex = 10 - Math.abs(position);
 
     return {
-      transform: `translateX(${translateX}px) scale(${scale})`,
+      translateX,
+      scale,
       opacity: isVisible ? opacity : 0,
       zIndex,
       isCenter,
@@ -139,98 +136,123 @@ const Carousel3D = () => {
       <div className="absolute right-0 top-0 bottom-0 w-32 md:w-64 bg-gradient-to-l from-[#050505] via-[#050505]/80 to-transparent z-30 pointer-events-none"></div>
 
       {/* Carousel container */}
-      <div className="relative flex items-center justify-center h-[400px] md:h-[450px]">
-        {duplicatedItems.slice(totalItems, totalItems * 2).map((item, idx) => {
-          const style = getCardStyle(idx + totalItems);
+      <div className="relative flex items-center justify-center h-[420px] md:h-[480px]">
+        {showcaseExamples.map((item, idx) => {
+          const style = getCardStyle(idx);
 
           return (
             <div
-              key={`${item.id}-${idx}`}
-              className="absolute transition-all duration-700 ease-out"
+              key={item.id}
+              className="absolute will-change-transform"
               style={{
-                transform: style.transform,
+                transform: `translateX(${style.translateX}px) scale(${style.scale})`,
                 opacity: style.opacity,
                 zIndex: style.zIndex,
+                transition: 'transform 600ms cubic-bezier(0.4, 0, 0.2, 1), opacity 600ms cubic-bezier(0.4, 0, 0.2, 1)',
               }}
             >
-              {style.isCenter ? (
-                // Center card - Split view with B/W left and colored right
-                <div className="relative w-64 h-80 md:w-80 md:h-96 rounded-2xl overflow-hidden border-2 border-green-500/50 bg-[#050505] carousel-card-active">
-                  {/* Center Line Glow */}
-                  <div className="absolute inset-y-0 left-1/2 w-[3px] bg-green-400 z-40 shadow-[0_0_20px_#4ade80,0_0_40px_#4ade80] -translate-x-1/2 carousel-line-glow"></div>
+              {/* Unified card structure - same DOM for center and side cards */}
+              <div
+                className={cn(
+                  "relative w-64 h-80 md:w-72 md:h-[360px] rounded-2xl overflow-hidden bg-[#050505] transition-all duration-600",
+                  style.isCenter
+                    ? "border-2 border-green-500/60 shadow-[0_0_40px_rgba(34,197,94,0.3)]"
+                    : "border border-white/10"
+                )}
+              >
+                {/* Center Line Glow - always present, opacity controlled */}
+                <div
+                  className="absolute inset-y-0 left-1/2 w-[3px] bg-green-400 z-40 -translate-x-1/2 transition-all duration-600"
+                  style={{
+                    opacity: style.isCenter ? 1 : 0,
+                    boxShadow: style.isCenter ? '0 0 20px #4ade80, 0 0 40px #4ade80' : 'none',
+                  }}
+                />
 
-                  <div className="grid grid-cols-2 h-full">
-                    {/* Left half - Input Photo (B/W) */}
-                    <div className="relative h-full overflow-hidden">
-                      <img
-                        src={item.inputImage}
-                        alt="Input photo"
-                        className="w-full h-full object-cover grayscale brightness-90"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/30"></div>
-                      <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-sm px-2 py-1 rounded-md">
-                        <p className="text-[10px] text-gray-300 font-medium tracking-wide">INPUT</p>
-                      </div>
-                    </div>
-
-                    {/* Right half - Try-On Result (Colored) */}
-                    <div className="relative h-full overflow-hidden">
-                      <img
-                        src={item.clothImage}
-                        alt="Try-on result"
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-l from-transparent to-black/30"></div>
-                      <div className="absolute bottom-3 right-3 bg-green-500/90 backdrop-blur-sm px-2 py-1 rounded-md">
-                        <p className="text-[10px] text-white font-medium tracking-wide">RESULT</p>
-                      </div>
+                <div className="grid grid-cols-2 h-full">
+                  {/* Left half - Input Photo */}
+                  <div className="relative h-full overflow-hidden">
+                    <img
+                      src={item.inputImage}
+                      alt="Input photo"
+                      className={cn(
+                        "w-full h-full object-cover grayscale transition-all duration-600",
+                        style.isCenter ? "brightness-90" : "brightness-[0.6]"
+                      )}
+                    />
+                    <div
+                      className="absolute inset-0 bg-gradient-to-r from-transparent to-black/30 transition-opacity duration-600"
+                      style={{ opacity: style.isCenter ? 1 : 0.5 }}
+                    />
+                    {/* INPUT label - fades in for center */}
+                    <div
+                      className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-sm px-2 py-1 rounded-md transition-opacity duration-600"
+                      style={{ opacity: style.isCenter ? 1 : 0 }}
+                    >
+                      <p className="text-[10px] text-gray-300 font-medium tracking-wide">INPUT</p>
                     </div>
                   </div>
 
-                  {/* Drag indicator */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-10 h-10 rounded-full bg-green-500 border-2 border-white shadow-[0_0_20px_rgba(34,197,94,0.5)] flex items-center justify-center">
-                    <div className="flex gap-0.5">
-                      <div className="w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-r-[6px] border-r-white"></div>
-                      <div className="w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-l-[6px] border-l-white"></div>
+                  {/* Right half - Try-On Result */}
+                  <div className="relative h-full overflow-hidden">
+                    <img
+                      src={item.clothImage}
+                      alt="Try-on result"
+                      className={cn(
+                        "w-full h-full object-cover transition-all duration-600",
+                        style.isCenter ? "" : "grayscale brightness-[0.6]"
+                      )}
+                    />
+                    <div
+                      className="absolute inset-0 bg-gradient-to-l from-transparent to-black/30 transition-opacity duration-600"
+                      style={{ opacity: style.isCenter ? 1 : 0.5 }}
+                    />
+                    {/* RESULT label - fades in for center */}
+                    <div
+                      className="absolute bottom-3 right-3 bg-green-500/90 backdrop-blur-sm px-2 py-1 rounded-md transition-opacity duration-600"
+                      style={{ opacity: style.isCenter ? 1 : 0 }}
+                    >
+                      <p className="text-[10px] text-white font-medium tracking-wide">RESULT</p>
                     </div>
-                  </div>
-
-                  {/* Label */}
-                  <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-sm text-green-400 font-medium whitespace-nowrap">
-                    {item.label}
                   </div>
                 </div>
-              ) : (
-                // Side cards - Full B/W with split preview
-                <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 bg-[#050505]">
-                  <div className="grid grid-cols-2 h-full">
-                    {/* Left half - Input (B/W) */}
-                    <div className="relative h-full overflow-hidden">
-                      <img
-                        src={item.inputImage}
-                        alt="Input"
-                        className="w-full h-full object-cover grayscale brightness-75"
-                      />
-                    </div>
-                    {/* Right half - Result (B/W for side cards) */}
-                    <div className="relative h-full overflow-hidden">
-                      <img
-                        src={item.clothImage}
-                        alt="Result"
-                        className="w-full h-full object-cover grayscale brightness-75"
-                      />
-                    </div>
-                  </div>
 
-                  {/* Center divider line */}
-                  <div className="absolute inset-y-0 left-1/2 w-[1px] bg-white/20 -translate-x-1/2"></div>
+                {/* Center divider line for non-center cards */}
+                <div
+                  className="absolute inset-y-0 left-1/2 w-[1px] bg-white/20 -translate-x-1/2 transition-opacity duration-600"
+                  style={{ opacity: style.isCenter ? 0 : 1 }}
+                />
 
-                  {/* Bottom gradient with label */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 pt-8">
-                    <p className="text-xs text-white/60 text-center">{item.label}</p>
+                {/* Drag indicator - fades in for center */}
+                <div
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-10 h-10 rounded-full bg-green-500 border-2 border-white shadow-[0_0_20px_rgba(34,197,94,0.5)] flex items-center justify-center transition-all duration-600"
+                  style={{
+                    opacity: style.isCenter ? 1 : 0,
+                    transform: `translate(-50%, -50%) scale(${style.isCenter ? 1 : 0.5})`,
+                  }}
+                >
+                  <div className="flex gap-0.5">
+                    <div className="w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-r-[6px] border-r-white"></div>
+                    <div className="w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-l-[6px] border-l-white"></div>
                   </div>
                 </div>
-              )}
+
+                {/* Bottom gradient with label */}
+                <div
+                  className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 pt-8 transition-opacity duration-600"
+                  style={{ opacity: style.isCenter ? 0 : 1 }}
+                >
+                  <p className="text-xs text-white/60 text-center">{item.label}</p>
+                </div>
+
+                {/* Label for center card - below the card */}
+                <div
+                  className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-sm text-green-400 font-medium whitespace-nowrap transition-opacity duration-600"
+                  style={{ opacity: style.isCenter ? 1 : 0 }}
+                >
+                  {item.label}
+                </div>
+              </div>
             </div>
           );
         })}
