@@ -1,251 +1,146 @@
 import { Link } from 'react-router-dom';
-import { motion, useScroll, useTransform } from 'framer-motion';
-import { useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/auth-store';
 import {
-  Sparkles,
-  Camera,
-  Shirt,
   Zap,
-  Shield,
-  Star,
+  Palette,
+  Download,
   ArrowRight,
   Check,
-  ChevronRight,
-  TrendingUp,
   Heart,
-  Share2,
   Users,
-  Crown,
-  Target,
-  MessageCircle,
-  ShoppingBag,
-  Play,
-  ThumbsUp,
-  Globe,
+  Camera,
+  Shirt,
+  Star,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Logo } from '@/components/Logo';
 
-// Floating 3D particles component
-const FloatingParticles = () => {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {[...Array(20)].map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute w-2 h-2 bg-gold/30 rounded-full"
-          style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-          }}
-          animate={{
-            y: [0, -30, 0],
-            x: [0, Math.random() * 20 - 10, 0],
-            opacity: [0.3, 0.8, 0.3],
-            scale: [1, 1.5, 1],
-          }}
-          transition={{
-            duration: 3 + Math.random() * 2,
-            repeat: Infinity,
-            delay: Math.random() * 2,
-          }}
-        />
-      ))}
+// Background Grid Lines
+const GridBackground = () => (
+  <div className="fixed inset-0 pointer-events-none z-0">
+    {/* Vertical Lines */}
+    <div className="absolute inset-0 max-w-7xl mx-auto flex justify-between opacity-[0.03] px-4 md:px-8">
+      <div className="w-px h-full bg-white"></div>
+      <div className="w-px h-full bg-white hidden md:block"></div>
+      <div className="w-px h-full bg-white hidden lg:block"></div>
+      <div className="w-px h-full bg-white hidden md:block"></div>
+      <div className="w-px h-full bg-white"></div>
     </div>
-  );
-};
 
-// 3D Card component with tilt effect
-const Card3D = ({ children, className }: { children: React.ReactNode; className?: string }) => {
-  const [rotateX, setRotateX] = useState(0);
-  const [rotateY, setRotateY] = useState(0);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const card = e.currentTarget;
-    const rect = card.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
-    setRotateX((y - centerY) / 10);
-    setRotateY((centerX - x) / 10);
-  };
-
-  const handleMouseLeave = () => {
-    setRotateX(0);
-    setRotateY(0);
-  };
-
-  return (
-    <motion.div
-      className={cn('transform-gpu perspective-1000', className)}
-      style={{
-        transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
-        transformStyle: 'preserve-3d',
-      }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-    >
-      {children}
-    </motion.div>
-  );
-};
-
-// Animated gradient mesh background
-const GradientMesh = () => (
-  <div className="absolute inset-0 overflow-hidden">
-    <div className="absolute top-0 left-0 w-full h-full">
-      <div className="absolute top-[10%] left-[20%] w-[600px] h-[600px] bg-gradient-to-r from-gold/20 to-royal/20 rounded-full blur-[120px] animate-pulse" />
-      <div className="absolute top-[40%] right-[10%] w-[500px] h-[500px] bg-gradient-to-l from-gold/15 to-purple-500/15 rounded-full blur-[100px] animate-pulse" style={{ animationDelay: '1s' }} />
-      <div className="absolute bottom-[20%] left-[30%] w-[400px] h-[400px] bg-gradient-to-t from-royal/20 to-gold/10 rounded-full blur-[80px] animate-pulse" style={{ animationDelay: '2s' }} />
-    </div>
+    {/* Glow Effect */}
+    <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-green-500/10 rounded-full blur-[120px]"></div>
   </div>
 );
 
-// Brand partners
-const brandPartners = [
-  'Myntra', 'Ajio', 'Amazon Fashion', 'Flipkart', 'Meesho',
-  'Tata Cliq', 'Nykaa Fashion', 'H&M', 'Zara', 'Fabindia',
+// Showcase Images for 3D Carousel
+const showcaseImages = [
+  '/demo/showcase-1.jpg',
+  '/demo/showcase-2.jpg',
+  '/demo/showcase-3.jpg',
+  '/demo/showcase-4.jpg',
+  '/demo/showcase-5.jpg',
 ];
 
-// How it works steps
-const steps = [
-  {
-    icon: Camera,
-    title: 'Upload Your Photo',
-    description: 'Take or upload a clear selfie - our AI creates your Style DNA profile',
-    gradient: 'from-blue-500/20 to-cyan-500/20',
-  },
-  {
-    icon: Shirt,
-    title: 'Choose Your Style',
-    description: 'Paste any product URL or upload an outfit image you want to try',
-    gradient: 'from-purple-500/20 to-pink-500/20',
-  },
-  {
-    icon: Zap,
-    title: 'See Magic Happen',
-    description: 'Get a photorealistic preview with your exact face in seconds',
-    gradient: 'from-gold/20 to-orange-500/20',
-  },
-];
+// 3D Carousel Component
+const Carousel3D = () => {
+  return (
+    <div className="relative w-full overflow-hidden py-10 perspective-container flex justify-center mb-24">
+      <div className="flex items-center justify-center gap-4 md:gap-8 min-w-max px-4">
+        {/* Left Card 2 (Far Left) */}
+        <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 dither-mask transform opacity-40 grayscale card-3d translate-x-12 scale-90 hidden lg:block">
+          <div className="w-full h-full bg-gradient-to-br from-green-500/20 to-purple-500/20 flex items-center justify-center">
+            <span className="text-4xl">👗</span>
+          </div>
+        </div>
 
-// Core features
+        {/* Left Card 1 */}
+        <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 dither-mask transform opacity-60 grayscale card-3d translate-x-4 scale-95 hidden md:block">
+          <div className="w-full h-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center">
+            <span className="text-4xl">👔</span>
+          </div>
+        </div>
+
+        {/* Center Main Card */}
+        <div className="relative w-64 h-80 md:w-80 md:h-96 rounded-2xl overflow-hidden border border-green-500/30 shadow-[0_0_50px_rgba(34,197,94,0.2)] z-20 bg-[#050505]">
+          {/* Scanline effect */}
+          <div className="absolute inset-0 z-30 pointer-events-none scanline mix-blend-screen w-1/2 h-full opacity-50"></div>
+
+          {/* Center Line */}
+          <div className="absolute inset-y-0 left-1/2 w-[1px] bg-green-400 z-40 shadow-[0_0_15px_#4ade80]"></div>
+
+          <div className="grid grid-cols-2 h-full">
+            {/* Left half (Dithered/Grayscale) */}
+            <div className="relative h-full overflow-hidden dither-mask grayscale brightness-150 contrast-125">
+              <div className="absolute inset-0 bg-gradient-to-br from-gray-500/30 to-gray-700/30 flex items-center justify-center">
+                <div className="text-center">
+                  <Camera className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+                  <p className="text-xs text-gray-400">Your Photo</p>
+                </div>
+              </div>
+            </div>
+            {/* Right half (Full Color) */}
+            <div className="relative h-full overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center">
+                <div className="text-center">
+                  <Shirt className="w-12 h-12 mx-auto mb-2 text-green-400" />
+                  <p className="text-xs text-green-400">Try-On Result</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Card 1 */}
+        <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 dither-mask transform opacity-60 grayscale card-3d -translate-x-4 scale-95 hidden md:block">
+          <div className="w-full h-full bg-gradient-to-br from-pink-500/20 to-rose-500/20 flex items-center justify-center">
+            <span className="text-4xl">👚</span>
+          </div>
+        </div>
+
+        {/* Right Card 2 (Far Right) */}
+        <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 dither-mask transform opacity-40 grayscale card-3d -translate-x-12 scale-90 hidden lg:block">
+          <div className="w-full h-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center">
+            <span className="text-4xl">🧥</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Fade */}
+      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#050505] to-transparent z-20 pointer-events-none"></div>
+    </div>
+  );
+};
+
+// Features data
 const features = [
   {
-    title: 'AI-Powered Accuracy',
-    description: 'Our advanced AI preserves your unique features while perfectly fitting any garment',
-    icon: Sparkles,
-    color: 'text-gold',
-    bgColor: 'bg-gold/10',
-  },
-  {
-    title: 'Works With Any Store',
-    description: 'Compatible with Myntra, Ajio, Amazon, Flipkart, Meesho and more',
-    icon: Shield,
-    color: 'text-blue-400',
-    bgColor: 'bg-blue-400/10',
-  },
-  {
-    title: 'Instant Results',
-    description: 'See yourself in any outfit within seconds, not minutes',
     icon: Zap,
+    title: 'Lightning-Fast\nTry-On Generation',
+    description: 'Upload your photo and any outfit, get a photorealistic preview in seconds. No waiting queues.',
+    color: 'text-green-400',
+  },
+  {
+    icon: Palette,
+    title: 'Works With Any\nIndian Store',
+    description: 'Compatible with Myntra, Ajio, Amazon, Flipkart, Meesho and more. Just paste the product URL.',
     color: 'text-purple-400',
-    bgColor: 'bg-purple-400/10',
   },
   {
-    title: 'Style Suggestions',
-    description: 'Get AI-powered complementary item recommendations for complete looks',
-    icon: Star,
-    color: 'text-pink-400',
-    bgColor: 'bg-pink-400/10',
+    icon: Download,
+    title: 'High-Quality\nDownloads',
+    description: 'Export your try-on results in high resolution. Perfect for sharing or comparing outfits.',
+    color: 'text-blue-400',
   },
 ];
 
-// Unique features - Growth drivers
-const uniqueFeatures = [
-  {
-    icon: Users,
-    title: 'Shop Together',
-    description: 'Share your try-ons with friends and get instant feedback before you buy',
-    benefit: 'Never buy alone again',
-    color: 'from-gold to-orange-500',
-  },
-  {
-    icon: MessageCircle,
-    title: 'Ask Your Circle',
-    description: 'Create polls - "Which dress should I buy?" - and let friends vote',
-    benefit: 'Crowdsourced fashion decisions',
-    color: 'from-purple-500 to-pink-500',
-  },
-  {
-    icon: ThumbsUp,
-    title: 'Community Picks',
-    description: 'See what outfits are trending in your city and style community',
-    benefit: 'Discover what others love',
-    color: 'from-blue-500 to-cyan-500',
-  },
-  {
-    icon: TrendingUp,
-    title: 'Viral Looks',
-    description: 'Browse the most-shared try-ons and find inspiration from real people',
-    benefit: 'Real people, real style',
-    color: 'from-green-500 to-emerald-500',
-  },
-  {
-    icon: Share2,
-    title: 'One-Click Share',
-    description: 'Share to WhatsApp, Instagram, or your MirrorX feed instantly',
-    benefit: 'Get feedback in seconds',
-    color: 'from-red-500 to-rose-500',
-  },
-  {
-    icon: Globe,
-    title: 'Style Feed',
-    description: 'Your personalized feed of try-ons from people with similar style',
-    benefit: 'Endless outfit inspiration',
-    color: 'from-indigo-500 to-violet-500',
-  },
-];
-
-// Testimonials
-const testimonials = [
-  {
-    name: 'Priya Sharma',
-    location: 'Mumbai',
-    avatar: '👩🏻',
-    rating: 5,
-    text: 'Shared 5 outfits in my college group. Got 50 votes in 10 minutes! Bought the most voted one - everyone loved it at the party!',
-    highlight: 'Shop Together',
-  },
-  {
-    name: 'Rahul Verma',
-    location: 'Bangalore',
-    avatar: '👨🏽',
-    rating: 5,
-    text: 'My girlfriend and I try outfits together now even when we are in different cities. She picks my shirts, I pick her kurtas!',
-    highlight: 'Virtual Try-On',
-  },
-  {
-    name: 'Anita Desai',
-    location: 'Delhi',
-    avatar: '👩🏾',
-    rating: 5,
-    text: 'The community feed is addictive! I found so many outfit ideas from people with my body type. No more fashion influencer FOMO.',
-    highlight: 'Style Feed',
-  },
-  {
-    name: 'Vikram Singh',
-    location: 'Pune',
-    avatar: '👨🏻',
-    rating: 5,
-    text: 'Used it before my wedding shopping. Tried 50+ sherwanis virtually, shared with family. Everyone voted - no family drama!',
-    highlight: 'Ask Your Circle',
-  },
+// Brand partners
+const brandPartners = [
+  { name: 'Myntra', icon: 'simple-icons:flipkart' },
+  { name: 'Ajio', icon: 'simple-icons:flipkart' },
+  { name: 'Amazon', icon: 'simple-icons:amazon' },
+  { name: 'Flipkart', icon: 'simple-icons:flipkart' },
+  { name: 'Meesho', icon: 'simple-icons:flipkart' },
 ];
 
 // Pricing tiers
@@ -256,9 +151,9 @@ const pricingTiers = [
     description: 'Perfect for trying out',
     features: [
       '5 try-ons per day',
-      'Share to 3 friends',
       'Standard quality',
       'Save to wardrobe',
+      'Basic support',
     ],
     cta: 'Get Started Free',
     popular: false,
@@ -270,10 +165,9 @@ const pricingTiers = [
     description: 'For fashion enthusiasts',
     features: [
       'Unlimited try-ons',
-      'Unlimited sharing',
-      'Create public polls',
       'HD quality outputs',
-      'Style Feed access',
+      'Priority processing',
+      'Shop Together access',
       'Community features',
       'Priority support',
     ],
@@ -288,11 +182,10 @@ const pricingTiers = [
     features: [
       'Everything in Pro',
       'Ultra HD quality',
-      'Trending insights',
-      'Private groups',
-      'Influencer tools',
+      'Exclusive styles',
       'API access',
       'White-glove support',
+      'Early features access',
     ],
     cta: 'Go Elite',
     popular: false,
@@ -301,68 +194,53 @@ const pricingTiers = [
 
 export default function LandingPage() {
   const { isAuthenticated, isLoading } = useAuthStore();
-  const heroRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ['start start', 'end start'],
-  });
-  const heroOpacity = useTransform(scrollYProgress, [0, 1], [1, 0]);
-  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 0.95]);
 
-  // Show loading while checking auth
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-midnight flex items-center justify-center">
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="flex flex-col items-center gap-4"
         >
           <div className="relative w-16 h-16">
-            <div className="absolute inset-0 rounded-full border-4 border-gold/20"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-gold border-t-transparent animate-spin"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-green-500/20"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-green-500 border-t-transparent animate-spin"></div>
           </div>
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-gray-400">Loading...</p>
         </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-midnight overflow-x-hidden">
+    <div className="min-h-screen bg-[#050505] text-gray-300 font-sans antialiased overflow-x-hidden selection:bg-green-500/30">
+      <GridBackground />
+
       {/* Navigation */}
-      <nav className="glass sticky top-0 z-50 border-b border-gold/10">
-        <div className="container max-w-container mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/">
-            <Logo size="md" />
+      <nav className="relative z-50 w-full border-b border-white/5 bg-[#050505]/50 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-green-500 rounded-sm"></div>
+            <span className="font-medium tracking-tight text-white">MirrorX</span>
           </Link>
 
-          <div className="hidden md:flex items-center gap-6">
-            <a href="#features" className="text-muted-foreground hover:text-gold transition">
-              Features
-            </a>
-            <a href="#how-it-works" className="text-muted-foreground hover:text-gold transition">
-              How it Works
-            </a>
-            <a href="#shop-together" className="text-muted-foreground hover:text-gold transition">
-              Shop Together
-            </a>
-            <a href="#pricing" className="text-muted-foreground hover:text-gold transition">
-              Pricing
-            </a>
+          <div className="hidden md:flex items-center gap-6 text-sm font-medium">
+            <a href="#features" className="text-gray-400 hover:text-white transition-colors">Features</a>
+            <a href="#pricing" className="text-gray-400 hover:text-white transition-colors">Pricing</a>
           </div>
 
           <div className="flex items-center gap-3">
             {isAuthenticated ? (
-              <Button asChild>
+              <Button asChild className="bg-white/10 hover:bg-white/20 text-white border border-white/5 rounded-full">
                 <Link to="/app/tryon">Open App</Link>
               </Button>
             ) : (
               <>
-                <Button variant="ghost" asChild>
-                  <Link to="/login">Log In</Link>
+                <Button variant="ghost" asChild className="text-gray-300 hover:text-white">
+                  <Link to="/login">Log in</Link>
                 </Button>
-                <Button asChild className="bg-gold-gradient hover:opacity-90">
+                <Button asChild className="bg-brand-gradient hover:opacity-90 text-white rounded-full border-0">
                   <Link to="/signup">Get Started</Link>
                 </Button>
               </>
@@ -371,623 +249,359 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero Section - Premium 3D */}
-      <section ref={heroRef} className="relative min-h-[95vh] flex items-center overflow-hidden">
-        <GradientMesh />
-        <FloatingParticles />
+      {/* Main Content */}
+      <main className="relative z-10 pt-20 pb-32">
 
-        <motion.div
-          style={{ opacity: heroOpacity, scale: heroScale }}
-          className="container max-w-container mx-auto px-6 relative z-10"
-        >
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Left - Text Content */}
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
+        {/* Hero Header */}
+        <div className="max-w-4xl mx-auto text-center px-4 mb-20">
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="text-5xl md:text-7xl font-medium text-white tracking-tight leading-[1.1] mb-6"
+          >
+            T<span className="font-pixel text-green-400 opacity-90">r</span>y Any Outf<span className="font-pixel text-white/80">i</span>t <br className="hidden md:block" />
+            Befo<span className="font-pixel text-green-400 opacity-90">r</span>e You B<span className="font-pixel text-white/80">u</span>y
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="text-xl text-gray-400 font-normal max-w-2xl mx-auto leading-relaxed mb-10"
+          >
+            AI-powered virtual try-on for Indian fashion. <br className="hidden sm:block" />
+            Works with Myntra, Ajio, Amazon & more.
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="flex flex-col sm:flex-row justify-center gap-4"
+          >
+            <Button
+              size="lg"
+              asChild
+              className="group relative inline-flex items-center justify-center gap-2 bg-white/5 text-white px-8 py-6 rounded-full overflow-hidden border border-white/10 hover:border-green-500/50 transition-all duration-300 hover:shadow-[0_0_20px_rgba(34,197,94,0.3)]"
             >
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-gold/20 to-gold/5 border border-gold/30 text-gold text-sm mb-6"
-              >
-                <Sparkles className="w-4 h-4" />
-                India's #1 AI Virtual Try-On
-                <Crown className="w-4 h-4" />
-              </motion.div>
+              <Link to={isAuthenticated ? '/app/tryon' : '/signup'}>
+                <div className="absolute inset-0 bg-green-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                <span className="relative font-medium text-lg">Try It Free</span>
+                <ArrowRight className="relative w-5 h-5 transition-transform group-hover:translate-x-1" />
+              </Link>
+            </Button>
+          </motion.div>
 
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-orbitron font-bold leading-tight mb-6">
-                Your
-                <span className="block text-transparent bg-clip-text bg-gold-gradient">
-                  AI Fashion Twin
-                </span>
-              </h1>
-
-              <p className="text-xl text-muted-foreground mb-8 max-w-xl">
-                See yourself in any outfit before buying. Upload your photo, paste any product link from Myntra, Ajio, Amazon & get a photorealistic preview in seconds.
-              </p>
-
-              <div className="flex flex-col sm:flex-row items-start gap-4 mb-12">
-                <Button size="lg" asChild className="bg-gold-gradient hover:opacity-90 text-lg px-8 py-6">
-                  <Link to={isAuthenticated ? '/app/tryon' : '/signup'}>
-                    Try It Free <ArrowRight className="ml-2 w-5 h-5" />
-                  </Link>
-                </Button>
-                <Button variant="outline" size="lg" asChild className="text-lg px-8 py-6 border-gold/30 hover:bg-gold/10">
-                  <a href="#how-it-works">
-                    <Play className="mr-2 w-5 h-5" /> Watch Demo
-                  </a>
-                </Button>
-              </div>
-
-              {/* Trust badges */}
-              <div className="flex items-center gap-6 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <div className="flex -space-x-2">
-                    {['👩🏻', '👨🏽', '👩🏾', '👨🏻'].map((emoji, i) => (
-                      <div key={i} className="w-8 h-8 rounded-full bg-charcoal border-2 border-midnight flex items-center justify-center text-sm">
-                        {emoji}
-                      </div>
-                    ))}
+          {/* Trust badges */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="flex items-center justify-center gap-6 mt-8 flex-wrap"
+          >
+            <div className="flex items-center gap-2">
+              <div className="flex -space-x-2">
+                {['👩🏻', '👨🏽', '👩🏾', '👨🏻'].map((emoji, i) => (
+                  <div key={i} className="w-8 h-8 rounded-full bg-white/5 border-2 border-[#050505] flex items-center justify-center text-sm">
+                    {emoji}
                   </div>
-                  <span className="text-sm text-muted-foreground">50K+ users</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <Star key={i} className="w-4 h-4 fill-gold text-gold" />
-                  ))}
-                  <span className="text-sm text-muted-foreground ml-1">4.9/5 rating</span>
-                </div>
+                ))}
               </div>
-            </motion.div>
-
-            {/* Right - 3D Mockup */}
-            <motion.div
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.3 }}
-              className="relative hidden lg:block"
-            >
-              <Card3D className="relative">
-                <div className="relative bg-gradient-to-br from-charcoal to-midnight rounded-3xl p-8 border border-gold/20 shadow-2xl shadow-gold/10">
-                  {/* Phone mockup */}
-                  <div className="relative mx-auto w-[280px] h-[560px] bg-midnight rounded-[40px] border-4 border-charcoal overflow-hidden shadow-inner">
-                    {/* Screen content */}
-                    <div className="absolute inset-2 bg-gradient-to-b from-charcoal/50 to-midnight rounded-[32px] overflow-hidden">
-                      {/* App header */}
-                      <div className="bg-charcoal/80 backdrop-blur px-4 py-3 flex items-center justify-between">
-                        <Logo size="sm" />
-                        <div className="flex gap-2">
-                          <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center">
-                            <Camera className="w-3 h-3 text-gold" />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Demo content */}
-                      <div className="p-4 space-y-4">
-                        <div className="aspect-[3/4] rounded-xl bg-gradient-to-br from-gold/5 to-purple-500/5 border border-gold/10 flex items-center justify-center">
-                          <motion.div
-                            animate={{ scale: [1, 1.05, 1] }}
-                            transition={{ duration: 2, repeat: Infinity }}
-                            className="text-center"
-                          >
-                            <div className="text-4xl mb-2">👗</div>
-                            <p className="text-xs text-muted-foreground">Virtual Try-On Result</p>
-                          </motion.div>
-                        </div>
-
-                        <div className="flex gap-2">
-                          <div className="flex-1 h-10 rounded-lg bg-gold/20 flex items-center justify-center">
-                            <span className="text-xs text-gold">95% Match</span>
-                          </div>
-                          <div className="flex-1 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-                            <span className="text-xs text-green-400">Size M</span>
-                          </div>
-                        </div>
-
-                        <div className="bg-charcoal/50 rounded-lg p-3">
-                          <div className="text-xs text-gold mb-1">AI Says:</div>
-                          <div className="text-xs text-muted-foreground">This color complements your skin tone perfectly!</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Notch */}
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-6 bg-midnight rounded-b-2xl" />
-                  </div>
-
-                  {/* Floating elements */}
-                  <motion.div
-                    animate={{ y: [-5, 5, -5] }}
-                    transition={{ duration: 3, repeat: Infinity }}
-                    className="absolute -top-6 -right-6 bg-gold/20 backdrop-blur-sm rounded-xl p-3 border border-gold/30"
-                  >
-                    <div className="flex items-center gap-2">
-                      <ThumbsUp className="w-5 h-5 text-gold" />
-                      <span className="text-sm font-medium">12 votes received</span>
-                    </div>
-                  </motion.div>
-
-                  <motion.div
-                    animate={{ y: [5, -5, 5] }}
-                    transition={{ duration: 3, repeat: Infinity, delay: 0.5 }}
-                    className="absolute -bottom-4 -left-6 bg-purple-500/20 backdrop-blur-sm rounded-xl p-3 border border-purple-500/30"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Users className="w-5 h-5 text-purple-400" />
-                      <span className="text-sm font-medium">3 friends online</span>
-                    </div>
-                  </motion.div>
-                </div>
-              </Card3D>
-            </motion.div>
-          </div>
-        </motion.div>
-      </section>
-
-      {/* Brand Partners Ticker */}
-      <section className="py-6 border-y border-gold/10 bg-charcoal/30 overflow-hidden">
-        <div className="flex animate-ticker">
-          {[...brandPartners, ...brandPartners, ...brandPartners].map((brand, i) => (
-            <span
-              key={i}
-              className="px-8 text-lg text-muted-foreground/60 whitespace-nowrap font-rajdhani hover:text-gold transition-colors"
-            >
-              {brand}
-            </span>
-          ))}
+              <span className="text-sm text-gray-500">50K+ users</span>
+            </div>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Star key={i} className="w-4 h-4 fill-green-500 text-green-500" />
+              ))}
+              <span className="text-sm text-gray-500 ml-1">4.9/5 rating</span>
+            </div>
+          </motion.div>
         </div>
-      </section>
 
-      {/* Stats Section */}
-      <section className="py-16 relative">
-        <div className="container max-w-container mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {[
-              { value: '50K+', label: 'Happy Users', icon: Heart },
-              { value: '2M+', label: 'Try-Ons Generated', icon: Shirt },
-              { value: '95%', label: 'Accuracy Rate', icon: Target },
-              { value: '40%', label: 'Fewer Returns', icon: TrendingUp },
-            ].map((stat, index) => (
+        {/* 3D Carousel */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.3 }}
+        >
+          <Carousel3D />
+        </motion.div>
+
+        {/* Brand Partners */}
+        <div className="max-w-7xl mx-auto px-6 mb-24 border-y border-white/5 bg-white/[0.01]">
+          <div className="flex flex-wrap justify-center md:justify-between items-center py-8 gap-8 opacity-40 grayscale hover:grayscale-0 transition-all duration-500">
+            {['Myntra', 'Ajio', 'Amazon', 'Flipkart', 'Meesho'].map((brand) => (
+              <span key={brand} className="text-lg font-medium text-white/60 hover:text-white transition-colors">
+                {brand}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Features Grid */}
+        <div id="features" className="max-w-7xl mx-auto px-6 mb-24">
+          <div className="grid md:grid-cols-3 gap-12 relative">
+            {features.map((feature, index) => (
               <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 20 }}
+                key={feature.title}
+                initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.1 }}
-                className="text-center"
+                className="group relative p-6 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-colors"
               >
-                <Card3D>
-                  <div className="bg-gradient-to-br from-charcoal to-midnight/50 rounded-2xl p-6 border border-gold/10">
-                    <stat.icon className="w-8 h-8 text-gold mx-auto mb-3" />
-                    <div className="text-3xl md:text-4xl font-orbitron font-bold text-gold mb-1">
-                      {stat.value}
-                    </div>
-                    <div className="text-sm text-muted-foreground">{stat.label}</div>
-                  </div>
-                </Card3D>
+                <div className="absolute -top-6 left-6 text-5xl font-bold text-white/5 select-none group-hover:text-green-500/10 transition-colors">
+                  0{index + 1}
+                </div>
+                <div className={cn(
+                  "w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center mb-6 border border-white/10 shadow-inner group-hover:scale-110 transition-transform duration-300",
+                  feature.color
+                )}>
+                  <feature.icon className="w-7 h-7" strokeWidth={1.5} />
+                </div>
+                <h3 className="text-xl font-medium text-white mb-3 tracking-tight whitespace-pre-line">
+                  {feature.title}
+                </h3>
+                <p className="text-lg text-gray-400 leading-relaxed">
+                  {feature.description}
+                </p>
               </motion.div>
             ))}
           </div>
         </div>
-      </section>
 
-      {/* How It Works */}
-      <section id="how-it-works" className="py-20 relative">
-        <div className="container max-w-container mx-auto px-6">
+        {/* How It Works */}
+        <div className="max-w-7xl mx-auto px-6 mb-24">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <h2 className="text-4xl md:text-5xl font-orbitron font-bold mb-4">
-              How It <span className="text-gold">Works</span>
+            <h2 className="text-4xl md:text-5xl font-medium text-white mb-4">
+              How It <span className="text-green-400">Works</span>
             </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+            <p className="text-gray-400 text-lg max-w-2xl mx-auto">
               Three simple steps to see yourself in any outfit
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-8 relative">
-            {/* Connection lines */}
-            <div className="hidden md:block absolute top-1/2 left-1/4 right-1/4 h-0.5 bg-gradient-to-r from-gold/50 via-purple-500/50 to-gold/50" />
-
-            {steps.map((step, index) => (
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              { step: '01', title: 'Upload Your Photo', desc: 'Take or upload a clear selfie' },
+              { step: '02', title: 'Choose Your Style', desc: 'Paste any product URL or upload an image' },
+              { step: '03', title: 'See The Magic', desc: 'Get a photorealistic preview in seconds' },
+            ].map((item, index) => (
               <motion.div
-                key={step.title}
+                key={item.step}
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: index * 0.2 }}
+                transition={{ delay: index * 0.15 }}
+                className="relative p-8 rounded-2xl border border-white/5 bg-white/[0.02] text-center group hover:border-green-500/30 transition-colors"
               >
-                <Card3D>
-                  <Card className="relative overflow-hidden">
-                    <div className={cn('absolute inset-0 bg-gradient-to-br opacity-50', step.gradient)} />
-                    <CardContent className="p-8 text-center relative">
-                      <motion.div
-                        whileHover={{ scale: 1.1, rotate: 5 }}
-                        className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gold/10 flex items-center justify-center border border-gold/20"
-                      >
-                        <step.icon className="w-10 h-10 text-gold" />
-                      </motion.div>
-                      <div className="absolute top-4 right-4 w-10 h-10 rounded-full bg-gold flex items-center justify-center text-midnight font-orbitron font-bold text-lg">
-                        {index + 1}
-                      </div>
-                      <h3 className="text-xl font-semibold mb-3">{step.title}</h3>
-                      <p className="text-muted-foreground">{step.description}</p>
-                    </CardContent>
-                  </Card>
-                </Card3D>
+                <div className="absolute top-4 right-4 w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-[#050505] font-bold text-lg">
+                  {index + 1}
+                </div>
+                <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-green-500/10 flex items-center justify-center border border-green-500/20 group-hover:scale-110 transition-transform">
+                  {index === 0 && <Camera className="w-8 h-8 text-green-400" />}
+                  {index === 1 && <Shirt className="w-8 h-8 text-green-400" />}
+                  {index === 2 && <Zap className="w-8 h-8 text-green-400" />}
+                </div>
+                <h3 className="text-xl font-medium text-white mb-2">{item.title}</h3>
+                <p className="text-gray-400">{item.desc}</p>
               </motion.div>
             ))}
           </div>
         </div>
-      </section>
 
-      {/* Features Grid */}
-      <section id="features" className="py-20 bg-gradient-to-b from-charcoal/30 to-midnight">
-        <div className="container max-w-container mx-auto px-6">
+        {/* Social Features */}
+        <div className="max-w-7xl mx-auto px-6 mb-24">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center mb-16"
+            className="relative p-8 md:p-12 rounded-3xl border border-white/5 bg-white/[0.02] overflow-hidden"
           >
-            <h2 className="text-4xl md:text-5xl font-orbitron font-bold mb-4">
-              Why Choose <span className="text-gold">MirrorX</span>?
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              The most advanced virtual try-on technology, built for Indian fashion
-            </p>
-          </motion.div>
+            {/* Background glow */}
+            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-[100px]"></div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Card3D className="h-full">
-                  <Card className="h-full hover:border-gold/30 transition-colors">
-                    <CardContent className="p-6">
-                      <div className={cn('w-14 h-14 rounded-xl flex items-center justify-center mb-4', feature.bgColor)}>
-                        <feature.icon className={cn('w-7 h-7', feature.color)} />
-                      </div>
-                      <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-                      <p className="text-sm text-muted-foreground">{feature.description}</p>
-                    </CardContent>
-                  </Card>
-                </Card3D>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Shop Together - Social Features */}
-      <section id="shop-together" className="py-20 relative overflow-hidden">
-        <GradientMesh />
-
-        <div className="container max-w-container mx-auto px-6 relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-400 text-sm mb-6">
-              <Users className="w-4 h-4" />
-              Social Shopping
+            <div className="relative z-10 grid md:grid-cols-2 gap-8 items-center">
+              <div>
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 text-sm mb-6">
+                  <Users className="w-4 h-4" />
+                  Shop Together
+                </div>
+                <h2 className="text-3xl md:text-4xl font-medium text-white mb-4">
+                  Get Opinions <span className="text-purple-400">Before You Buy</span>
+                </h2>
+                <p className="text-gray-400 text-lg mb-6">
+                  Share your virtual try-ons with friends, create polls, and get votes. Never make a bad fashion decision alone again.
+                </p>
+                <Button asChild className="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-full">
+                  <Link to={isAuthenticated ? '/app/feed' : '/signup'}>
+                    Explore Shop Together <ArrowRight className="ml-2 w-4 h-4" />
+                  </Link>
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { icon: Users, label: 'Share with Friends', value: 'Instant sharing' },
+                  { icon: Heart, label: 'Get Votes', value: 'Community picks' },
+                ].map((item) => (
+                  <div key={item.label} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                    <item.icon className="w-8 h-8 text-purple-400 mb-3" />
+                    <p className="text-white font-medium">{item.label}</p>
+                    <p className="text-sm text-gray-500">{item.value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-            <h2 className="text-4xl md:text-5xl font-orbitron font-bold mb-4">
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">Shop Together</span> with Friends
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Share your virtual try-ons, get votes from friends, and never make a bad purchase decision alone again
-            </p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {uniqueFeatures.map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Card3D className="h-full">
-                  <Card className="h-full group hover:border-gold/30 transition-all duration-300">
-                    <CardContent className="p-6">
-                      <div className={cn(
-                        'w-14 h-14 rounded-xl flex items-center justify-center mb-4 bg-gradient-to-br',
-                        feature.color
-                      )}>
-                        <feature.icon className="w-7 h-7 text-white" />
-                      </div>
-                      <h3 className="text-xl font-semibold mb-2 group-hover:text-gold transition-colors">
-                        {feature.title}
-                      </h3>
-                      <p className="text-muted-foreground mb-4">{feature.description}</p>
-                      <div className="inline-flex items-center gap-2 text-sm text-gold">
-                        <Check className="w-4 h-4" />
-                        {feature.benefit}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Card3D>
-              </motion.div>
-            ))}
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mt-12"
-          >
-            <Button size="lg" asChild className="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90">
-              <Link to={isAuthenticated ? '/app/feed' : '/signup'}>
-                Start Shopping Together <ArrowRight className="ml-2 w-5 h-5" />
-              </Link>
-            </Button>
           </motion.div>
         </div>
-      </section>
 
-      {/* Testimonials */}
-      <section className="py-20 bg-charcoal/30">
-        <div className="container max-w-container mx-auto px-6">
+        {/* Pricing */}
+        <div id="pricing" className="max-w-7xl mx-auto px-6 mb-24">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="text-center mb-16"
           >
-            <h2 className="text-4xl md:text-5xl font-orbitron font-bold mb-4">
-              Loved by <span className="text-gold">Shoppers</span>
+            <h2 className="text-4xl md:text-5xl font-medium text-white mb-4">
+              Simple <span className="text-green-400">Pricing</span>
             </h2>
-            <p className="text-muted-foreground text-lg">Real reviews from real users</p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {testimonials.map((testimonial, index) => (
-              <motion.div
-                key={testimonial.name}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Card3D className="h-full">
-                  <Card className="h-full">
-                    <CardContent className="p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 rounded-full bg-gold/10 flex items-center justify-center text-2xl">
-                          {testimonial.avatar}
-                        </div>
-                        <div>
-                          <p className="font-semibold">{testimonial.name}</p>
-                          <p className="text-sm text-muted-foreground">{testimonial.location}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-1 mb-3">
-                        {[...Array(testimonial.rating)].map((_, i) => (
-                          <Star key={i} className="w-4 h-4 fill-gold text-gold" />
-                        ))}
-                      </div>
-                      <p className="text-muted-foreground text-sm mb-3">&ldquo;{testimonial.text}&rdquo;</p>
-                      <div className="inline-block px-3 py-1 rounded-full bg-gold/10 text-gold text-xs">
-                        {testimonial.highlight}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Card3D>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing */}
-      <section id="pricing" className="py-20">
-        <div className="container max-w-container mx-auto px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="text-4xl md:text-5xl font-orbitron font-bold mb-4">
-              Simple <span className="text-gold">Pricing</span>
-            </h2>
-            <p className="text-muted-foreground text-lg">Start free, upgrade when you need more</p>
+            <p className="text-gray-400 text-lg">Start free, upgrade when you need more</p>
           </motion.div>
 
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {pricingTiers.map((tier, index) => (
               <motion.div
                 key={tier.name}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: index * 0.15 }}
+                transition={{ delay: index * 0.1 }}
+                className={cn(
+                  "relative p-6 rounded-2xl border transition-colors",
+                  tier.popular
+                    ? "border-green-500/50 bg-green-500/5 shadow-[0_0_30px_rgba(34,197,94,0.15)]"
+                    : "border-white/5 bg-white/[0.02] hover:bg-white/[0.04]"
+                )}
               >
-                <Card3D className="h-full">
-                  <Card
-                    className={cn(
-                      'relative h-full',
-                      tier.popular && 'border-gold ring-2 ring-gold/20'
-                    )}
-                  >
-                    {tier.popular && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gold text-midnight text-sm font-semibold rounded-full">
-                        Most Popular
-                      </div>
-                    )}
-                    <CardContent className="p-6">
-                      <h3 className="text-xl font-semibold mb-2">{tier.name}</h3>
-                      <p className="text-sm text-muted-foreground mb-4">{tier.description}</p>
-                      <div className="mb-6">
-                        <span className="text-4xl font-orbitron font-bold text-gold">
-                          {tier.price === '0' ? 'Free' : `₹${tier.price}`}
-                        </span>
-                        {tier.period && (
-                          <span className="text-muted-foreground">{tier.period}</span>
-                        )}
-                      </div>
-                      <ul className="space-y-3 mb-6">
-                        {tier.features.map((feature) => (
-                          <li key={feature} className="flex items-center gap-2 text-sm">
-                            <Check className="w-4 h-4 text-gold flex-shrink-0" />
-                            {feature}
-                          </li>
-                        ))}
-                      </ul>
-                      <Button
-                        className={cn(
-                          'w-full',
-                          tier.popular ? 'bg-gold-gradient hover:opacity-90' : ''
-                        )}
-                        variant={tier.popular ? 'default' : 'outline'}
-                        asChild
-                      >
-                        <Link to="/signup">{tier.cta}</Link>
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Card3D>
+                {tier.popular && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-green-500 text-[#050505] text-sm font-medium rounded-full">
+                    Most Popular
+                  </div>
+                )}
+                <h3 className="text-xl font-medium text-white mb-2">{tier.name}</h3>
+                <p className="text-sm text-gray-500 mb-4">{tier.description}</p>
+                <div className="mb-6">
+                  <span className="text-4xl font-medium text-green-400">
+                    {tier.price === '0' ? 'Free' : `₹${tier.price}`}
+                  </span>
+                  {tier.period && (
+                    <span className="text-gray-500">{tier.period}</span>
+                  )}
+                </div>
+                <ul className="space-y-3 mb-6">
+                  {tier.features.map((feature) => (
+                    <li key={feature} className="flex items-center gap-2 text-sm text-gray-300">
+                      <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  className={cn(
+                    "w-full rounded-full",
+                    tier.popular
+                      ? "bg-brand-gradient hover:opacity-90 text-white"
+                      : "bg-white/5 hover:bg-white/10 text-white border border-white/10"
+                  )}
+                  asChild
+                >
+                  <Link to="/signup">{tier.cta}</Link>
+                </Button>
               </motion.div>
             ))}
           </div>
         </div>
-      </section>
 
-      {/* B2B CTA */}
-      <section className="py-20">
-        <div className="container max-w-container mx-auto px-6">
-          <Card3D>
-            <Card className="bg-gradient-to-br from-charcoal to-midnight border-gold/30 overflow-hidden">
-              <CardContent className="p-8 md:p-12 relative">
-                <FloatingParticles />
-                <div className="grid md:grid-cols-2 gap-8 items-center relative z-10">
-                  <div>
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold/10 text-gold text-sm mb-4">
-                      <ShoppingBag className="w-4 h-4" />
-                      For E-Commerce Businesses
-                    </div>
-                    <h2 className="text-3xl md:text-4xl font-orbitron font-bold mb-4">
-                      Integrate MirrorX into Your Store
-                    </h2>
-                    <p className="text-muted-foreground mb-6">
-                      Reduce returns by 40% and increase conversions by 25%. Our API and Shopify plugin make integration seamless.
-                    </p>
-                    <Button asChild className="bg-gold-gradient hover:opacity-90">
-                      <a href="mailto:business@mirrorx.co.in">
-                        Contact Sales <ChevronRight className="w-4 h-4 ml-1" />
-                      </a>
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    {[
-                      { value: '-40%', label: 'Return Rate' },
-                      { value: '+25%', label: 'Conversion' },
-                      { value: '10K+', label: 'API Calls/Day' },
-                      { value: '99.9%', label: 'Uptime SLA' },
-                    ].map((stat) => (
-                      <Card3D key={stat.label}>
-                        <div className="bg-midnight/50 rounded-xl p-4 text-center border border-gold/10">
-                          <div className="text-2xl font-orbitron font-bold text-gold">
-                            {stat.value}
-                          </div>
-                          <div className="text-sm text-muted-foreground">{stat.label}</div>
-                        </div>
-                      </Card3D>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Card3D>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="py-20 relative overflow-hidden">
-        <GradientMesh />
-        <div className="container max-w-container mx-auto px-6 text-center relative z-10">
+        {/* Final CTA */}
+        <div className="max-w-4xl mx-auto px-6 text-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-4xl md:text-6xl font-orbitron font-bold mb-6">
+            <h2 className="text-4xl md:text-6xl font-medium text-white mb-6">
               Ready to Transform Your
-              <span className="block text-gold">Shopping Experience?</span>
+              <span className="block text-green-400">Shopping Experience?</span>
             </h2>
-            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-400 mb-8 max-w-2xl mx-auto">
               Join 50,000+ users who never buy the wrong outfit again
             </p>
-            <Button size="lg" asChild className="bg-gold-gradient hover:opacity-90 text-lg px-10 py-6">
+            <Button
+              size="lg"
+              asChild
+              className="group relative inline-flex items-center justify-center gap-2 bg-brand-gradient text-white px-10 py-6 rounded-full overflow-hidden border-0 hover:shadow-[0_0_30px_rgba(34,197,94,0.4)] transition-all duration-300"
+            >
               <Link to={isAuthenticated ? '/app/tryon' : '/signup'}>
-                Get Started Free <ArrowRight className="ml-2 w-6 h-6" />
+                <span className="font-medium text-lg">Get Started Free</span>
+                <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
               </Link>
             </Button>
           </motion.div>
         </div>
-      </section>
+      </main>
 
       {/* Footer */}
-      <footer className="py-12 border-t border-gold/10">
-        <div className="container max-w-container mx-auto px-6">
-          <div className="grid md:grid-cols-4 gap-8">
+      <footer className="relative z-10 py-12 border-t border-white/5">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
-              <Logo size="md" />
-              <p className="text-sm text-muted-foreground mt-4">
-                AI-powered virtual try-on & personal styling for Indian fashion.
+              <Link to="/" className="flex items-center gap-2 mb-4">
+                <div className="w-6 h-6 bg-green-500 rounded-sm"></div>
+                <span className="font-medium text-white">MirrorX</span>
+              </Link>
+              <p className="text-sm text-gray-500">
+                AI-powered virtual try-on for Indian fashion.
               </p>
             </div>
 
             <div>
-              <h4 className="font-semibold mb-4">Product</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#features" className="hover:text-gold transition">Features</a></li>
-                <li><a href="#shop-together" className="hover:text-gold transition">Shop Together</a></li>
-                <li><a href="#pricing" className="hover:text-gold transition">Pricing</a></li>
-                <li><a href="#how-it-works" className="hover:text-gold transition">How It Works</a></li>
+              <h4 className="font-medium text-white mb-4">Product</h4>
+              <ul className="space-y-2 text-sm text-gray-500">
+                <li><a href="#features" className="hover:text-white transition">Features</a></li>
+                <li><a href="#pricing" className="hover:text-white transition">Pricing</a></li>
               </ul>
             </div>
 
             <div>
-              <h4 className="font-semibold mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link to="/legal/privacy" className="hover:text-gold transition">Privacy Policy</Link></li>
-                <li><Link to="/legal/terms" className="hover:text-gold transition">Terms of Service</Link></li>
-                <li><Link to="/legal/refund" className="hover:text-gold transition">Refund Policy</Link></li>
+              <h4 className="font-medium text-white mb-4">Legal</h4>
+              <ul className="space-y-2 text-sm text-gray-500">
+                <li><Link to="/legal/privacy" className="hover:text-white transition">Privacy Policy</Link></li>
+                <li><Link to="/legal/terms" className="hover:text-white transition">Terms of Service</Link></li>
+                <li><Link to="/legal/refund" className="hover:text-white transition">Refund Policy</Link></li>
               </ul>
             </div>
 
             <div>
-              <h4 className="font-semibold mb-4">Contact</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
+              <h4 className="font-medium text-white mb-4">Contact</h4>
+              <ul className="space-y-2 text-sm text-gray-500">
                 <li>support@mirrorx.co.in</li>
                 <li>business@mirrorx.co.in</li>
               </ul>
             </div>
           </div>
 
-          <div className="mt-8 pt-8 border-t border-gold/10 flex flex-col md:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">
+          <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-gray-500">
               &copy; {new Date().getFullYear()} MirrorX. All rights reserved.
             </p>
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
+            <p className="text-sm text-gray-500 flex items-center gap-2">
               Made with <Heart className="w-4 h-4 text-red-500 fill-red-500" /> in India
             </p>
           </div>

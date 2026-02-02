@@ -164,9 +164,9 @@ export default function BBAClothsDemo() {
       formData.append('mode', 'PART');
       formData.append('gender', 'female');
 
-      // Call the real try-on API
+      // Call the demo try-on API (no auth required)
       const API_BASE = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${API_BASE}/tryon`, {
+      const response = await fetch(`${API_BASE}/tryon/demo`, {
         method: 'POST',
         body: formData,
       });
@@ -200,18 +200,28 @@ export default function BBAClothsDemo() {
       }
     } catch (error) {
       console.error('Try-on error:', error);
-      // For demo, create a simulated result with the product image
-      const demoResult: TryOnResult = {
-        productId: product.id,
-        product,
-        resultImage: product.image, // Fallback to product image
-        status: 'done',
-      };
-      setTryOnResults(prev => {
-        const filtered = prev.filter(r => r.productId !== product.id);
-        return [demoResult, ...filtered];
-      });
-      toast({ title: 'Demo Mode', description: 'Showing product preview (API unavailable)' });
+      const errorMessage = (error as Error).message || 'Unknown error';
+
+      // Show meaningful error to user
+      if (errorMessage.includes('Rate limit')) {
+        toast({
+          title: 'Rate limit reached',
+          description: 'Please try again later or sign up for unlimited access.',
+          variant: 'destructive'
+        });
+      } else if (errorMessage.includes('API') || errorMessage.includes('fetch')) {
+        toast({
+          title: 'Connection error',
+          description: 'Could not connect to try-on service. Please check your internet.',
+          variant: 'destructive'
+        });
+      } else {
+        toast({
+          title: 'Try-on failed',
+          description: 'Could not generate try-on. Please try again.',
+          variant: 'destructive'
+        });
+      }
     } finally {
       setIsProcessing(false);
       setCurrentTryingProduct(null);
@@ -288,7 +298,7 @@ export default function BBAClothsDemo() {
         formData.append('gender', 'female');
 
         const API_BASE = import.meta.env.VITE_API_URL || '/api';
-        const response = await fetch(`${API_BASE}/tryon`, {
+        const response = await fetch(`${API_BASE}/tryon/demo`, {
           method: 'POST',
           body: formData,
         });
@@ -304,14 +314,9 @@ export default function BBAClothsDemo() {
             });
           }
         }
-      } catch {
-        // Use product image as fallback
-        results.push({
-          productId: product.id,
-          product,
-          resultImage: product.image,
-          status: 'done',
-        });
+      } catch (err) {
+        console.error('Try-all item error:', err);
+        // Skip failed items in batch mode - don't add broken results
       }
 
       // Small delay between requests

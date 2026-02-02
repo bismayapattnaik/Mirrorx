@@ -280,16 +280,16 @@ export default function TryOnPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-orbitron font-bold">Virtual Try-On</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-medium text-white">Virtual Try-On</h1>
+          <p className="text-gray-400">
             See yourself in any outfit instantly
           </p>
         </div>
         <div className="text-right">
-          <p className="text-sm text-muted-foreground">Credits</p>
-          <p className="text-xl font-bold text-gold">{user?.credits_balance || 0}</p>
+          <p className="text-sm text-gray-400">Credits</p>
+          <p className="text-xl font-medium text-green-400">{user?.credits_balance || 0}</p>
           {user?.subscription_tier === 'FREE' && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-gray-500">
               {dailyFreeRemaining} free tries left today
             </p>
           )}
@@ -302,8 +302,8 @@ export default function TryOnPage() {
           {/* Selfie Upload */}
           <Card>
             <CardContent className="p-6">
-              <Label className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Camera className="w-5 h-5 text-gold" />
+              <Label className="text-lg font-medium mb-4 flex items-center gap-2 text-white">
+                <Camera className="w-5 h-5 text-green-400" />
                 Your Photo
               </Label>
 
@@ -311,8 +311,8 @@ export default function TryOnPage() {
                 className={cn(
                   'relative border-2 border-dashed rounded-xl p-8 text-center transition-all',
                   dragActive === 'selfie'
-                    ? 'border-gold bg-gold/5'
-                    : 'border-gold/30 hover:border-gold/50',
+                    ? 'border-green-500 bg-green-500/5'
+                    : 'border-green-500/30 hover:border-green-500/50',
                   tryOn.selfieImage && 'border-success'
                 )}
                 onDragOver={(e) => {
@@ -364,8 +364,8 @@ export default function TryOnPage() {
           {/* Product Input */}
           <Card>
             <CardContent className="p-6">
-              <Label className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Shirt className="w-5 h-5 text-gold" />
+              <Label className="text-lg font-medium mb-4 flex items-center gap-2 text-white">
+                <Shirt className="w-5 h-5 text-green-400" />
                 Product / Outfit
               </Label>
 
@@ -386,8 +386,8 @@ export default function TryOnPage() {
                     className={cn(
                       'relative border-2 border-dashed rounded-xl p-8 text-center transition-all',
                       dragActive === 'product'
-                        ? 'border-gold bg-gold/5'
-                        : 'border-gold/30 hover:border-gold/50',
+                        ? 'border-green-500 bg-green-500/5'
+                        : 'border-green-500/30 hover:border-green-500/50',
                       tryOn.productImage && 'border-success'
                     )}
                     onDragOver={(e) => {
@@ -473,8 +473,8 @@ export default function TryOnPage() {
           {/* Gender Selection */}
           <Card>
             <CardContent className="p-6">
-              <Label className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <User className="w-5 h-5 text-gold" />
+              <Label className="text-lg font-medium mb-4 flex items-center gap-2 text-white">
+                <User className="w-5 h-5 text-green-400" />
                 Select Gender
               </Label>
               <div className="grid grid-cols-2 gap-4">
@@ -483,8 +483,8 @@ export default function TryOnPage() {
                   className={cn(
                     'p-4 rounded-xl border-2 transition-all text-center',
                     tryOn.gender === 'female'
-                      ? 'border-gold bg-gold/10'
-                      : 'border-gold/20 hover:border-gold/40'
+                      ? 'border-green-500 bg-green-500/10'
+                      : 'border-white/10 hover:border-green-500/40'
                   )}
                 >
                   <div className="text-2xl mb-2">👩</div>
@@ -495,8 +495,8 @@ export default function TryOnPage() {
                   className={cn(
                     'p-4 rounded-xl border-2 transition-all text-center',
                     tryOn.gender === 'male'
-                      ? 'border-gold bg-gold/10'
-                      : 'border-gold/20 hover:border-gold/40'
+                      ? 'border-green-500 bg-green-500/10'
+                      : 'border-white/10 hover:border-green-500/40'
                   )}
                 >
                   <div className="text-2xl mb-2">👨</div>
@@ -509,15 +509,15 @@ export default function TryOnPage() {
           {/* Mode Selection */}
           <Card>
             <CardContent className="p-6">
-              <Label className="text-lg font-semibold mb-4">Try-On Mode</Label>
+              <Label className="text-lg font-medium mb-4 text-white">Try-On Mode</Label>
               <div className="grid grid-cols-2 gap-4">
                 <button
                   onClick={() => setTryOnMode('PART')}
                   className={cn(
                     'p-4 rounded-xl border-2 transition-all text-left',
                     tryOn.mode === 'PART'
-                      ? 'border-gold bg-gold/10'
-                      : 'border-gold/20 hover:border-gold/40'
+                      ? 'border-green-500 bg-green-500/10'
+                      : 'border-white/10 hover:border-green-500/40'
                   )}
                 >
                   <div className="font-semibold mb-1">Part Mode</div>
@@ -530,8 +530,8 @@ export default function TryOnPage() {
                   className={cn(
                     'p-4 rounded-xl border-2 transition-all text-left',
                     tryOn.mode === 'FULL_FIT'
-                      ? 'border-gold bg-gold/10'
-                      : 'border-gold/20 hover:border-gold/40'
+                      ? 'border-green-500 bg-green-500/10'
+                      : 'border-white/10 hover:border-green-500/40'
                   )}
                 >
                   <div className="font-semibold mb-1">Full Fit</div>
@@ -576,8 +576,8 @@ export default function TryOnPage() {
         {/* Result Section */}
         <Card className="h-fit sticky top-20">
           <CardContent className="p-6">
-            <Label className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-gold" />
+            <Label className="text-lg font-medium mb-4 flex items-center gap-2 text-white">
+              <Sparkles className="w-5 h-5 text-green-400" />
               Result
             </Label>
 
