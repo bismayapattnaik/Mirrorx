@@ -4,34 +4,34 @@
 
 @layer base {
   :root {
-    /* MirrorX Dark Theme (Default) */
-    --background: 222 47% 2%; /* #02040a - Deep Midnight Blue */
-    --foreground: 220 14% 90%; /* #E5E7EB - Light text */
+    /* MirrorX Dark Theme - Green Accent */
+    --background: 0 0% 2%; /* #050505 - Pure Dark */
+    --foreground: 0 0% 83%; /* #d4d4d4 - Gray text */
 
-    --card: 0 0% 10%; /* #1a1a1a - Charcoal */
-    --card-foreground: 220 14% 90%;
+    --card: 0 0% 4%; /* #0a0a0a - Dark surface */
+    --card-foreground: 0 0% 83%;
 
-    --popover: 0 0% 10%;
-    --popover-foreground: 220 14% 90%;
+    --popover: 0 0% 4%;
+    --popover-foreground: 0 0% 83%;
 
-    --primary: 43 59% 52%; /* #D4AF37 - Gold */
+    --primary: 142 71% 45%; /* #22c55e - Brand Green */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 10%; /* #1a1a1a - Charcoal */
-    --secondary-foreground: 220 14% 90%;
+    --secondary: 0 0% 6%; /* #0f0f0f - Dark surface */
+    --secondary-foreground: 0 0% 83%;
 
-    --accent: 43 59% 52%; /* Gold */
+    --accent: 142 71% 45%; /* Brand Green */
     --accent-foreground: 0 0% 100%;
 
-    --muted: 220 9% 26%; /* #3f3f46 */
-    --muted-foreground: 220 9% 64%; /* #9CA3AF */
+    --muted: 0 0% 15%; /* #262626 */
+    --muted-foreground: 0 0% 64%; /* #a3a3a3 */
 
     --destructive: 0 84% 60%; /* #EF4444 */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 43 59% 52% / 0.2; /* Gold with opacity */
-    --input: 222 47% 5%;
-    --ring: 43 59% 52%;
+    --border: 0 0% 100% / 0.05; /* White with low opacity */
+    --input: 0 0% 4%;
+    --ring: 142 71% 45%;
 
     --radius: 0.5rem;
   }
@@ -42,9 +42,14 @@
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-background text-foreground font-rajdhani antialiased;
+    @apply bg-[#050505] text-gray-300 font-sans antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+    overflow-x: hidden;
   }
 
   /* Custom scrollbar */
@@ -54,58 +59,76 @@
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-midnight;
+    @apply bg-[#050505];
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-gold/30 rounded-full;
+    @apply bg-brand/30 rounded-full;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-gold/50;
+    @apply bg-brand/50;
   }
 
   /* Selection */
   ::selection {
-    @apply bg-gold/30 text-foreground;
+    @apply bg-green-500/30 text-foreground;
   }
 }
 
 @layer components {
-  /* Gold gradient button */
-  .btn-gold {
-    @apply bg-gold-gradient text-white font-semibold rounded-lg px-6 py-3
-           transition-all duration-300 hover:brightness-110 hover:shadow-gold-glow
-           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-
-  /* Gold outline button */
-  .btn-gold-outline {
-    @apply border border-gold text-gold font-semibold rounded-lg px-6 py-3
-           transition-all duration-300 hover:bg-gold hover:text-white
-           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-
-  /* Premium card */
-  .card-premium {
-    @apply bg-charcoal border border-gold/20 rounded-2xl p-6
-           transition-all duration-300 hover:translate-y-[-4px] hover:shadow-card-hover;
-  }
-
-  /* Glass morphism effect */
+  /* Glass morphism navigation */
   .glass {
-    @apply bg-midnight/80 backdrop-blur-lg border-b border-gold/10;
+    @apply bg-[#050505]/50 backdrop-blur-md border-b border-white/5;
   }
 
-  /* Gold text gradient */
+  /* Brand gradient button (replaces gold) */
+  .btn-gold {
+    @apply bg-brand-gradient text-white font-medium rounded-full px-6 py-3
+           transition-all duration-300 hover:brightness-110 hover:shadow-brand-glow
+           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Brand outline button */
+  .btn-gold-outline {
+    @apply border border-brand text-brand font-medium rounded-full px-6 py-3
+           transition-all duration-300 hover:bg-brand hover:text-white
+           active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Premium card with dither effect */
+  .card-premium {
+    @apply bg-white/[0.02] border border-white/5 rounded-2xl p-6
+           transition-all duration-300 hover:bg-white/[0.04] hover:translate-y-[-4px];
+  }
+
+  /* Dither mask effect */
+  .dither-mask::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(0, 0, 0, 0.8) 1.5px, transparent 1px);
+    background-size: 4px 4px;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* Scanline effect */
+  .scanline {
+    background: linear-gradient(to bottom, transparent 40%, rgba(34, 197, 94, 0.8) 50%, transparent 60%);
+    background-size: 100% 200%;
+    animation: scan 2s linear infinite;
+  }
+
+  /* Brand text gradient */
   .text-gold-gradient {
-    @apply bg-clip-text text-transparent bg-gold-gradient;
+    @apply bg-clip-text text-transparent bg-brand-gradient;
   }
 
-  /* Input with gold focus */
+  /* Input with brand focus */
   .input-gold {
-    @apply bg-midnight/50 border-b-2 border-gold/30 rounded-t-lg px-4 py-3
-           focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/20
+    @apply bg-white/5 border border-white/10 rounded-lg px-4 py-3
+           focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20
            transition-all duration-300 text-foreground placeholder:text-muted-foreground;
   }
 
@@ -122,17 +145,44 @@
   /* Premium badge */
   .badge-premium {
     @apply inline-flex items-center gap-1 px-3 py-1 rounded-full
-           bg-gold/10 text-gold text-xs font-semibold uppercase tracking-wider;
+           bg-brand/10 text-brand text-xs font-medium uppercase tracking-wider;
   }
 
   /* Section heading */
   .section-heading {
-    @apply font-orbitron text-section text-foreground;
+    @apply font-sans text-section text-foreground font-medium;
   }
 
   /* Hero heading */
   .hero-heading {
-    @apply font-orbitron text-hero text-foreground;
+    @apply font-sans text-hero text-foreground font-medium;
+  }
+
+  /* Feature card number overlay */
+  .feature-number {
+    @apply absolute -top-6 left-6 text-5xl font-bold text-white/5 select-none
+           group-hover:text-green-500/10 transition-colors;
+  }
+
+  /* 3D perspective container */
+  .perspective-container {
+    perspective: 2000px;
+  }
+
+  /* 3D card transform */
+  .card-3d {
+    transform-style: preserve-3d;
+    transition: transform 0.5s ease-out;
+  }
+
+  /* Hide scrollbar utility */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 
@@ -151,13 +201,44 @@
     @apply transition-transform duration-300 hover:-translate-y-1;
   }
 
-  /* Gold border glow on hover */
+  /* Brand border glow on hover */
   .hover-glow {
-    @apply transition-shadow duration-300 hover:shadow-gold-glow;
+    @apply transition-shadow duration-300 hover:shadow-brand-glow;
   }
 
   /* Scanning line animation for upload */
   .scanning-line {
-    @apply absolute left-0 right-0 h-0.5 bg-gold-gradient animate-scanning-line;
+    @apply absolute left-0 right-0 h-0.5 bg-brand-gradient animate-scanning-line;
   }
+
+  /* Vertical grid lines background */
+  .grid-lines {
+    @apply absolute inset-0 max-w-7xl mx-auto flex justify-between opacity-[0.03] px-4 md:px-8;
+  }
+
+  .grid-lines > div {
+    @apply w-px h-full bg-white;
+  }
+
+  /* Green glow effect */
+  .glow-effect {
+    @apply absolute rounded-full blur-[120px] pointer-events-none;
+    background: rgba(34, 197, 94, 0.1);
+  }
+
+  /* Pixel font accent */
+  .pixel-accent {
+    @apply font-pixel;
+  }
+
+  /* Gradient bottom fade */
+  .fade-bottom {
+    @apply absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#050505] to-transparent pointer-events-none;
+  }
+}
+
+/* Keyframe for scan animation (used in component) */
+@keyframes scan {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 0% 200%; }
 }
