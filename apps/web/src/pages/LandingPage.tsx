@@ -33,15 +33,6 @@ const GridBackground = () => (
   </div>
 );
 
-// Showcase Images for 3D Carousel
-const showcaseImages = [
-  '/demo/showcase-1.jpg',
-  '/demo/showcase-2.jpg',
-  '/demo/showcase-3.jpg',
-  '/demo/showcase-4.jpg',
-  '/demo/showcase-5.jpg',
-];
-
 // 3D Carousel Component
 const Carousel3D = () => {
   return (
@@ -132,15 +123,6 @@ const features = [
     description: 'Export your try-on results in high resolution. Perfect for sharing or comparing outfits.',
     color: 'text-blue-400',
   },
-];
-
-// Brand partners
-const brandPartners = [
-  { name: 'Myntra', icon: 'simple-icons:flipkart' },
-  { name: 'Ajio', icon: 'simple-icons:flipkart' },
-  { name: 'Amazon', icon: 'simple-icons:amazon' },
-  { name: 'Flipkart', icon: 'simple-icons:flipkart' },
-  { name: 'Meesho', icon: 'simple-icons:flipkart' },
 ];
 
 // Pricing tiers
