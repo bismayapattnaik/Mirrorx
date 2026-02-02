@@ -1,0 +1,80 @@
+# MirrorX Custom Try-On Model - Docker Compose
+# Usage: docker-compose up -d
+
+version: '3.8'
+
+services:
+  mirrorx-tryon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mirrorx-tryon:latest
+    container_name: mirrorx-tryon
+    restart: unless-stopped
+
+    # GPU access
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONUNBUFFERED=1
+      # Model configuration
+      - MODEL_PRECISION=fp16
+      - MAX_BATCH_SIZE=1
+      - INFERENCE_STEPS=25
+
+    volumes:
+      # Persist model cache to avoid re-downloading
+      - model_cache:/root/.cache/huggingface
+      - insightface_cache:/root/.insightface/models
+      # Optional: Mount custom fine-tuned models
+      # - ./custom_models:/app/custom_models
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  # Optional: Redis for caching face embeddings
+  redis:
+    image: redis:7-alpine
+    container_name: mirrorx-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  model_cache:
+    driver: local
+  insightface_cache:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  default:
+    name: mirrorx-network
