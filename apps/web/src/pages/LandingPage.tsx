@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/auth-store';
+import { useState, useEffect } from 'react';
 import {
   Zap,
   Palette,
@@ -33,137 +34,227 @@ const GridBackground = () => (
   </div>
 );
 
-// Demo showcase data - real try-on examples
+// Demo showcase data - same person in input and result (simulating try-on)
 const showcaseExamples = [
   {
     id: 1,
-    userImage: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=600&fit=crop&crop=face',
-    resultImage: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400&h=600&fit=crop&crop=face',
-    label: 'Casual to Formal',
+    // Same woman - input (plain) vs result (formal dress)
+    inputImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=600&fit=crop&crop=face',
+    resultImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=600&fit=crop',
+    clothImage: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=400&h=600&fit=crop',
+    label: 'Evening Gown',
   },
   {
     id: 2,
-    userImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&crop=face',
-    resultImage: 'https://images.unsplash.com/photo-1617137968427-85924c800a22?w=400&h=600&fit=crop&crop=face',
-    label: 'Traditional Kurta',
+    // Same man - input vs result (formal suit)
+    inputImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&crop=face',
+    resultImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop',
+    clothImage: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=400&h=600&fit=crop',
+    label: 'Designer Suit',
   },
   {
     id: 3,
-    userImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=600&fit=crop&crop=face',
-    resultImage: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=400&h=600&fit=crop&crop=face',
-    label: 'Designer Dress',
+    // Same woman - input vs result (floral dress)
+    inputImage: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=600&fit=crop&crop=face',
+    resultImage: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=600&fit=crop',
+    clothImage: 'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=400&h=600&fit=crop',
+    label: 'Floral Dress',
   },
   {
     id: 4,
-    userImage: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=600&fit=crop&crop=face',
-    resultImage: 'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=400&h=600&fit=crop&crop=face',
+    // Same man - input vs result (casual blazer)
+    inputImage: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=600&fit=crop&crop=face',
+    resultImage: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=600&fit=crop',
+    clothImage: 'https://images.unsplash.com/photo-1617127365659-c47fa864d8bc?w=400&h=600&fit=crop',
     label: 'Smart Casual',
   },
   {
     id: 5,
-    userImage: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400&h=600&fit=crop&crop=face',
-    resultImage: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=400&h=600&fit=crop&crop=face',
-    label: 'Street Style',
+    // Same woman - input vs result (traditional)
+    inputImage: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400&h=600&fit=crop&crop=face',
+    resultImage: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400&h=600&fit=crop',
+    clothImage: 'https://images.unsplash.com/photo-1583391733956-6c78276477e2?w=400&h=600&fit=crop',
+    label: 'Traditional Saree',
+  },
+  {
+    id: 6,
+    // Another woman - input vs result
+    inputImage: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400&h=600&fit=crop&crop=face',
+    resultImage: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400&h=600&fit=crop',
+    clothImage: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400&h=600&fit=crop',
+    label: 'Summer Dress',
   },
 ];
 
-// 3D Carousel Component
+// Infinite Scrolling Carousel Component
 const Carousel3D = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const totalItems = showcaseExamples.length;
+
+  // Duplicate items for seamless infinite scroll
+  const duplicatedItems = [...showcaseExamples, ...showcaseExamples, ...showcaseExamples];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % totalItems);
+    }, 3000); // Change card every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [totalItems]);
+
+  // Calculate position and styling for each card
+  const getCardStyle = (index: number) => {
+    const centerOffset = totalItems; // Start from middle set
+    const relativeIndex = (index - centerOffset - activeIndex + totalItems) % totalItems;
+
+    // Normalize to -2 to +2 range for visible cards
+    let position = relativeIndex;
+    if (position > totalItems / 2) position -= totalItems;
+    if (position < -totalItems / 2) position += totalItems;
+
+    const isCenter = position === 0;
+    const isVisible = Math.abs(position) <= 2;
+
+    // Calculate transforms based on position
+    const translateX = position * 280; // Card width + gap
+    const scale = isCenter ? 1 : Math.max(0.7, 1 - Math.abs(position) * 0.15);
+    const opacity = isCenter ? 1 : Math.max(0.3, 1 - Math.abs(position) * 0.35);
+    const zIndex = 10 - Math.abs(position);
+
+    return {
+      transform: `translateX(${translateX}px) scale(${scale})`,
+      opacity: isVisible ? opacity : 0,
+      zIndex,
+      isCenter,
+      isVisible,
+    };
+  };
+
   return (
-    <div className="relative w-full overflow-hidden py-10 perspective-container flex justify-center mb-24">
-      <div className="flex items-center justify-center gap-4 md:gap-8 min-w-max px-4">
-        {/* Left Card 2 (Far Left) */}
-        <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 transform opacity-40 card-3d translate-x-12 scale-90 hidden lg:block">
-          <img
-            src={showcaseExamples[0].resultImage}
-            alt="Try-on example"
-            className="w-full h-full object-cover grayscale"
-          />
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-            <p className="text-xs text-white/70">{showcaseExamples[0].label}</p>
-          </div>
-        </div>
+    <div className="relative w-full overflow-hidden py-10 mb-24">
+      {/* Left fade gradient */}
+      <div className="absolute left-0 top-0 bottom-0 w-32 md:w-64 bg-gradient-to-r from-[#050505] via-[#050505]/80 to-transparent z-30 pointer-events-none"></div>
 
-        {/* Left Card 1 */}
-        <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 transform opacity-60 card-3d translate-x-4 scale-95 hidden md:block">
-          <img
-            src={showcaseExamples[1].resultImage}
-            alt="Try-on example"
-            className="w-full h-full object-cover grayscale"
-          />
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-            <p className="text-xs text-white/70">{showcaseExamples[1].label}</p>
-          </div>
-        </div>
+      {/* Right fade gradient */}
+      <div className="absolute right-0 top-0 bottom-0 w-32 md:w-64 bg-gradient-to-l from-[#050505] via-[#050505]/80 to-transparent z-30 pointer-events-none"></div>
 
-        {/* Center Main Card - Before/After Split */}
-        <div className="relative w-64 h-80 md:w-80 md:h-96 rounded-2xl overflow-hidden border border-green-500/30 shadow-[0_0_50px_rgba(34,197,94,0.2)] z-20 bg-[#050505]">
-          {/* Center Line Glow */}
-          <div className="absolute inset-y-0 left-1/2 w-[2px] bg-green-400 z-40 shadow-[0_0_20px_#4ade80,0_0_40px_#4ade80]"></div>
+      {/* Carousel container */}
+      <div className="relative flex items-center justify-center h-[400px] md:h-[450px]">
+        {duplicatedItems.slice(totalItems, totalItems * 2).map((item, idx) => {
+          const style = getCardStyle(idx + totalItems);
 
-          <div className="grid grid-cols-2 h-full">
-            {/* Left half - User Photo (Original) */}
-            <div className="relative h-full overflow-hidden">
-              <img
-                src={showcaseExamples[2].userImage}
-                alt="User photo"
-                className="w-full h-full object-cover grayscale brightness-90"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/20"></div>
-              <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-md">
-                <p className="text-[10px] text-gray-300 font-medium">YOUR PHOTO</p>
-              </div>
+          return (
+            <div
+              key={`${item.id}-${idx}`}
+              className="absolute transition-all duration-700 ease-out"
+              style={{
+                transform: style.transform,
+                opacity: style.opacity,
+                zIndex: style.zIndex,
+              }}
+            >
+              {style.isCenter ? (
+                // Center card - Split view with B/W left and colored right
+                <div className="relative w-64 h-80 md:w-80 md:h-96 rounded-2xl overflow-hidden border-2 border-green-500/50 bg-[#050505] carousel-card-active">
+                  {/* Center Line Glow */}
+                  <div className="absolute inset-y-0 left-1/2 w-[3px] bg-green-400 z-40 shadow-[0_0_20px_#4ade80,0_0_40px_#4ade80] -translate-x-1/2 carousel-line-glow"></div>
+
+                  <div className="grid grid-cols-2 h-full">
+                    {/* Left half - Input Photo (B/W) */}
+                    <div className="relative h-full overflow-hidden">
+                      <img
+                        src={item.inputImage}
+                        alt="Input photo"
+                        className="w-full h-full object-cover grayscale brightness-90"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/30"></div>
+                      <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-sm px-2 py-1 rounded-md">
+                        <p className="text-[10px] text-gray-300 font-medium tracking-wide">INPUT</p>
+                      </div>
+                    </div>
+
+                    {/* Right half - Try-On Result (Colored) */}
+                    <div className="relative h-full overflow-hidden">
+                      <img
+                        src={item.clothImage}
+                        alt="Try-on result"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-l from-transparent to-black/30"></div>
+                      <div className="absolute bottom-3 right-3 bg-green-500/90 backdrop-blur-sm px-2 py-1 rounded-md">
+                        <p className="text-[10px] text-white font-medium tracking-wide">RESULT</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Drag indicator */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-10 h-10 rounded-full bg-green-500 border-2 border-white shadow-[0_0_20px_rgba(34,197,94,0.5)] flex items-center justify-center">
+                    <div className="flex gap-0.5">
+                      <div className="w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-r-[6px] border-r-white"></div>
+                      <div className="w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-l-[6px] border-l-white"></div>
+                    </div>
+                  </div>
+
+                  {/* Label */}
+                  <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-sm text-green-400 font-medium whitespace-nowrap">
+                    {item.label}
+                  </div>
+                </div>
+              ) : (
+                // Side cards - Full B/W with split preview
+                <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 bg-[#050505]">
+                  <div className="grid grid-cols-2 h-full">
+                    {/* Left half - Input (B/W) */}
+                    <div className="relative h-full overflow-hidden">
+                      <img
+                        src={item.inputImage}
+                        alt="Input"
+                        className="w-full h-full object-cover grayscale brightness-75"
+                      />
+                    </div>
+                    {/* Right half - Result (B/W for side cards) */}
+                    <div className="relative h-full overflow-hidden">
+                      <img
+                        src={item.clothImage}
+                        alt="Result"
+                        className="w-full h-full object-cover grayscale brightness-75"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Center divider line */}
+                  <div className="absolute inset-y-0 left-1/2 w-[1px] bg-white/20 -translate-x-1/2"></div>
+
+                  {/* Bottom gradient with label */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 pt-8">
+                    <p className="text-xs text-white/60 text-center">{item.label}</p>
+                  </div>
+                </div>
+              )}
             </div>
-            {/* Right half - Try-On Result */}
-            <div className="relative h-full overflow-hidden">
-              <img
-                src={showcaseExamples[2].resultImage}
-                alt="Try-on result"
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-l from-transparent to-black/20"></div>
-              <div className="absolute bottom-3 right-3 bg-green-500/80 backdrop-blur-sm px-2 py-1 rounded-md">
-                <p className="text-[10px] text-white font-medium">TRY-ON RESULT</p>
-              </div>
-            </div>
-          </div>
+          );
+        })}
+      </div>
 
-          {/* Drag indicator */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-8 h-8 rounded-full bg-green-500 border-2 border-white shadow-lg flex items-center justify-center">
-            <div className="flex gap-0.5">
-              <div className="w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-r-[5px] border-r-white"></div>
-              <div className="w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[5px] border-l-white"></div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Card 1 */}
-        <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 transform opacity-60 card-3d -translate-x-4 scale-95 hidden md:block">
-          <img
-            src={showcaseExamples[3].resultImage}
-            alt="Try-on example"
-            className="w-full h-full object-cover grayscale"
+      {/* Navigation dots */}
+      <div className="flex justify-center gap-2 mt-8">
+        {showcaseExamples.map((_, idx) => (
+          <button
+            key={idx}
+            onClick={() => setActiveIndex(idx)}
+            className={cn(
+              "w-2 h-2 rounded-full transition-all duration-300",
+              idx === activeIndex
+                ? "w-6 bg-green-500"
+                : "bg-white/20 hover:bg-white/40"
+            )}
+            aria-label={`Go to slide ${idx + 1}`}
           />
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-            <p className="text-xs text-white/70">{showcaseExamples[3].label}</p>
-          </div>
-        </div>
-
-        {/* Right Card 2 (Far Right) */}
-        <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 transform opacity-40 card-3d -translate-x-12 scale-90 hidden lg:block">
-          <img
-            src={showcaseExamples[4].resultImage}
-            alt="Try-on example"
-            className="w-full h-full object-cover grayscale"
-          />
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-            <p className="text-xs text-white/70">{showcaseExamples[4].label}</p>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Bottom Fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#050505] to-transparent z-20 pointer-events-none"></div>
+      <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#050505] to-transparent z-20 pointer-events-none"></div>
     </div>
   );
 };
