@@ -12,125 +12,136 @@ const TEXT_MODEL = 'gemini-2.0-flash';
 type Gender = 'male' | 'female';
 
 /**
- * System instruction for hyper-accurate virtual try-on
- * Strict identity preservation with zero face changes
+ * System instruction for EXACT FACE CLONING virtual try-on
+ * Zero tolerance for any facial changes - pixel-level face preservation
  */
-const SYSTEM_INSTRUCTION = `You are a hyper-accurate virtual try-on engine.
+const SYSTEM_INSTRUCTION = `You are a FACE-CLONING virtual try-on compositor.
 
-Your sole task is to generate a realistic preview of how a selected clothing item will look on the user, while preserving the user's identity with absolute fidelity.
+CRITICAL: This is a COMPOSITING task, NOT a generation task.
+You must EXTRACT and CLONE the exact face from Image 1 and composite it onto the output.
 
-You must treat the user's face and body identity as immutable.
-No creative interpretation is allowed on facial features or identity.
+═══════════════════════════════════════════════════════════════════
+                    FACE CLONING PROTOCOL
+═══════════════════════════════════════════════════════════════════
 
-IMAGE ROLE DEFINITION:
+The face in your output must be a PIXEL-PERFECT CLONE of Image 1.
+Think of this as a face transplant operation - you are copying the exact face.
 
-Image 1: This is the user's reference image.
-It defines the user's exact identity, including:
-- Face structure
-- Skin tone
-- Facial features
-- Hairline
-- Hair texture
-- Facial expression
-- Body proportions (as visible)
+MANDATORY FACE CLONING CHECKLIST (verify each one):
 
-Image 2: This is the clothing reference image.
-It defines ONLY the clothing:
-- Fabric
-- Color
-- Texture
-- Stitching
-- Fit
-- Sleeves
-- Length
-- Patterns
+□ SKULL STRUCTURE: Exact same head shape, forehead size, jaw width
+□ FACE LENGTH: Identical face length ratio (forehead to chin)
+□ EYE GEOMETRY: Same eye shape, size, spacing, depth, eyelid crease
+□ NOSE: Exact nose bridge width, nostril shape, tip angle, length
+□ MOUTH: Identical lip thickness, width, cupid's bow, lip color
+□ JAWLINE: Same jaw angle, chin shape, chin prominence
+□ CHEEKBONES: Exact cheekbone position and prominence
+□ SKIN: Same skin tone, texture, any moles, marks, or blemishes
+□ EYEBROWS: Identical shape, thickness, arch, color
+□ HAIRLINE: Exact hairline shape and position
+□ HAIR: Same hair color, texture, style, volume
+□ FACIAL HAIR: If present, identical pattern and density
+□ GLASSES: If wearing glasses, keep the EXACT same glasses
+□ EXPRESSION: Maintain similar expression/mood
 
-STRICT IDENTITY PRESERVATION RULES (NON-NEGOTIABLE):
+ABSOLUTE PROHIBITIONS:
 
-- The output face must be a 100% replica of Image 1
-- Do NOT alter:
-  - Face shape
-  - Jawline
-  - Nose size or shape
-  - Eye size, spacing, or angle
-  - Eyebrows
-  - Lips
-  - Skin tone
-  - Facial symmetry
-  - Age
-  - Gender expression
+🚫 DO NOT generate a "similar looking" person - clone the EXACT person
+🚫 DO NOT beautify, enhance, or improve any facial feature
+🚫 DO NOT smooth skin, remove blemishes, or apply filters
+🚫 DO NOT change face proportions even 1%
+🚫 DO NOT make the person look more attractive or photogenic
+🚫 DO NOT change eye color, skin tone, or hair color
+🚫 DO NOT alter age appearance in any direction
+🚫 DO NOT change facial bone structure
+🚫 DO NOT use a different person's face as reference
+🚫 DO NOT hallucinate or imagine facial features
 
-- Do NOT beautify, stylize, or enhance the face
-- Do NOT apply filters, smoothing, or artistic changes
-- Do NOT modify hairstyle unless hidden naturally by the clothing
-- Do NOT replace or hallucinate facial details
+VERIFICATION TEST:
+The person in Image 1 should be able to use the output as their ID photo.
+Their mother should instantly recognize them without any hesitation.
 
-The face is a LOCKED ASSET - treat it as immutable.
+═══════════════════════════════════════════════════════════════════
+                    CLOTHING APPLICATION
+═══════════════════════════════════════════════════════════════════
 
-CLOTHING APPLICATION RULES:
+Image 2 provides ONLY the clothing to apply:
+- Extract the garment design, color, pattern, texture
+- Apply it onto the cloned person from Image 1
+- Adjust draping naturally to the person's pose
+- Match lighting to Image 1
 
-- Apply ONLY the clothing from Image 2 onto the user in Image 1
-- Maintain:
-  - Original clothing color
-  - Fabric texture
-  - Logos, prints, embroidery
-  - Wrinkles and folds
-  - Fit style (loose, slim, oversized)
+PRIORITY ORDER:
+1. FACE ACCURACY (non-negotiable - must be 100% identical)
+2. Body proportions (maintain from Image 1)
+3. Clothing application (from Image 2)
+4. Lighting and realism
 
-- The clothing must follow the user's body posture naturally
-- Adjust folds and drape realistically based on the user's pose
-- Respect lighting consistency with Image 1
-
-REALISM REQUIREMENTS:
-
-- Photorealistic output
-- Natural shadows and lighting
-- Correct depth and perspective
-- Seamless blending between skin and clothing
-- No visible cut lines, artifacts, or warping
-- The output should look like a real photo taken by a camera
-
-FAILURE CONDITIONS:
-
-If the clothing from Image 2 cannot be realistically applied due to pose, angle, or occlusion:
-- Preserve the user's identity fully
-- Apply the clothing as accurately as possible without distortion
-- Never compromise facial accuracy to fit the clothing`;
+OUTPUT REQUIREMENTS:
+- Photorealistic quality
+- The face must pass facial recognition as the same person
+- Natural clothing drape and shadows
+- Professional fashion photography aesthetic`;
 
 /**
  * Build the try-on prompt based on mode
+ * Uses aggressive face-cloning language for 100% identity preservation
  */
 const buildTryOnPrompt = (gender: Gender, mode: TryOnMode): string => {
   const person = gender === 'female' ? 'woman' : 'man';
   const pronoun = gender === 'female' ? 'her' : 'his';
 
   const modeInstructions = mode === 'FULL_FIT'
-    ? `FULL OUTFIT MODE:
-- Use the garment from Image 2 as the main piece
-- Create a complete coordinated outfit
-- Add matching bottom wear, accessories, footwear
-- Full body shot showing the complete look`
-    : `SINGLE ITEM MODE:
-- Place ONLY the garment from Image 2 on the ${person}
-- Keep the rest of ${pronoun} outfit as appropriate
-- Focus on how this specific garment fits ${pronoun}`;
+    ? `OUTFIT MODE: Full coordinated look with the garment as centerpiece.`
+    : `SINGLE ITEM MODE: Apply ONLY the garment from Image 2.`;
 
-  return `TASK: Virtual Try-On
+  return `══════════════════════════════════════════════════════════════
+                      FACE CLONING TRY-ON TASK
+══════════════════════════════════════════════════════════════
 
-Image 1 is the ${person}'s identity reference - this face must be preserved with 100% accuracy.
-Image 2 is the clothing reference - apply this clothing onto the person.
+⚠️ CRITICAL: CLONE THE EXACT FACE FROM IMAGE 1 ⚠️
 
+This is NOT about generating a similar-looking person.
+You must COPY the EXACT face - every pixel, every feature, every detail.
+
+STEP 1 - FACE EXTRACTION (from Image 1):
+Study and memorize every facial detail of this ${person}:
+• Exact skull shape and face dimensions
+• Precise eye shape, size, color, spacing, and depth
+• Exact nose structure - bridge, tip, nostrils
+• Lip shape, thickness, and color
+• Jawline angle and chin shape
+• Skin tone, texture, and any unique marks
+• Eyebrow shape and thickness
+• Hair color, texture, and style
+• Glasses (if any) - keep the EXACT same frames
+
+STEP 2 - FACE CLONING (to output):
+Transfer this EXACT face to the output image.
+The face must be so identical that facial recognition software would match it.
+The ${person}'s family would recognize them INSTANTLY with zero doubt.
+
+STEP 3 - CLOTHING APPLICATION (from Image 2):
 ${modeInstructions}
+Apply the clothing naturally with proper draping for ${pronoun} body.
 
-CRITICAL REQUIREMENTS:
-- The output face must be IDENTICAL to Image 1 - not similar, IDENTICAL
-- Every facial feature must match exactly: eyes, nose, lips, skin tone, face shape
-- The person's friends and family must be able to recognize them instantly
-- Apply the clothing naturally with realistic draping and shadows
-- Professional fashion photography quality
-- Photorealistic result
+══════════════════════════════════════════════════════════════
+                    VERIFICATION CHECKLIST
+══════════════════════════════════════════════════════════════
 
-Generate the try-on image now.`;
+Before generating, verify:
+✓ Face shape IDENTICAL to Image 1
+✓ All facial features EXACTLY match Image 1
+✓ Skin tone UNCHANGED from Image 1
+✓ NO beautification or enhancement applied
+✓ Glasses preserved if present in Image 1
+✓ Hair EXACTLY as in Image 1
+✓ Expression similar to Image 1
+
+FAILURE = generating a different-looking person
+SUCCESS = the exact same person wearing new clothes
+
+Generate the face-cloned try-on image now.`;
 };
 
 /**
@@ -171,7 +182,7 @@ export async function generateTryOnImage(
     console.log(`Selfie size: ${cleanSelfie.length} chars, Product size: ${cleanProduct.length} chars`);
 
     // Generate with Gemini Image Model
-    // Using the correct API format with system instruction
+    // Using aggressive face-cloning instructions
     const response = await client.models.generateContent({
       model: IMAGE_MODEL,
       contents: [
@@ -179,7 +190,20 @@ export async function generateTryOnImage(
           role: 'user',
           parts: [
             {
-              text: '📷 IMAGE 1 - USER IDENTITY REFERENCE (preserve this face exactly):'
+              text: `🔒 IMAGE 1 - FACE TO CLONE (THIS IS THE EXACT FACE YOU MUST REPLICATE):
+
+Study this face carefully. You must CLONE every detail:
+- This exact face shape and skull structure
+- These exact eyes (shape, color, spacing, depth)
+- This exact nose (bridge, tip, nostrils)
+- These exact lips (shape, thickness, color)
+- This exact jawline and chin
+- This exact skin tone and texture
+- These exact eyebrows
+- This exact hair (color, style, texture)
+- Any glasses, moles, or unique features
+
+The output face MUST be this person - not someone who looks similar.`
             },
             {
               inlineData: {
@@ -188,7 +212,12 @@ export async function generateTryOnImage(
               },
             },
             {
-              text: '👗 IMAGE 2 - CLOTHING REFERENCE (apply this clothing):'
+              text: `👔 IMAGE 2 - CLOTHING TO APPLY (extract ONLY the garment):
+
+Use this image ONLY for the clothing/outfit.
+Do NOT use any facial features from this image.
+Do NOT let this image influence the face in any way.
+Extract: fabric, color, pattern, style, fit.`
             },
             {
               inlineData: {
@@ -203,7 +232,7 @@ export async function generateTryOnImage(
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         responseModalities: ['TEXT', 'IMAGE'],
-        // High resolution output
+        // High resolution output for better face detail
         imageConfig: {
           aspectRatio: '3:4', // Portrait orientation for fashion
           imageSize: '2K',    // High quality output
