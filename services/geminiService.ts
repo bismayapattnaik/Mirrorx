@@ -34,40 +34,53 @@ export const generateTryOnImage = async (
   console.log(`Generating with model: ${modelName}`);
 
   const promptText = `
-  ACT AS AN EXPERT VFX ARTIST AND HIGH-FASHION PHOTOGRAPHER.
+  VIRTUAL TRY-ON ENGINE - IDENTITY CLONING MODE
 
-  TASK: Perform a photorealistic VIRTUAL TRY-ON.
+  === INPUTS ===
+  IMAGE A (Person Reference): The user's EXACT face and body type to preserve
+  IMAGE B (Garment Reference): The fashion item to apply
 
-  INPUTS:
-  - IMAGE A (Face): The user's face and head.
-  - IMAGE B (Garment/Item): The fashion item to be worn.
+  === MISSION ===
+  Clone the EXACT person from IMAGE A and dress them in clothing from IMAGE B.
+  The output must show the SAME PERSON - same face, same body type, same weight.
 
-  EXECUTION PIPELINE:
-  1. **IDENTITY RECONSTRUCTION (CRITICAL)**:
-     - Reconstruct the user's face from IMAGE A with 100% fidelity.
-     - PRESERVE: Eye shape, nose, mouth, jawline, skin tone, facial hair, and hair texture.
-     - The face MUST look exactly like the person in IMAGE A.
+  === FACE PRESERVATION (100% CLONE - CRITICAL) ===
+  - Copy the face from IMAGE A with pixel-perfect accuracy
+  - Keep ALL: face shape, eye shape/size, nose, lips, jawline width
+  - Keep ALL: skin tone, texture, pores, marks, lines, imperfections
+  - NO beautification - no smoothing, no slimming, no enhancement
+  - Face width and fullness must be EXACTLY as in IMAGE A
+  - The person's family must recognize them INSTANTLY
 
-  2. **VIRTUAL TAILORING & PHYSICS**:
-     - Fit the Garment from IMAGE B onto a generated body that matches the user's head size and skin tone.
-     - **PHYSICS ENGINE**: The cloth must WRAP around the body volumes (chest, shoulders, arms). It cannot look flat.
-     - **WEIGHT & DRAPE**: If the cloth is heavy (jacket/coat), show stiffness and volume. If light (t-shirt/silk), show natural draping and gravity.
-     - **CONTACT POINTS**: The collar/neckline must touch the skin naturally. No visible gaps or "floating" pixels between cloth and skin.
+  === BODY PRESERVATION (SAME WEIGHT/BUILD - CRITICAL) ===
+  - The body type MUST match IMAGE A
+  - DO NOT make the person look THINNER than IMAGE A
+  - DO NOT make the person look HEAVIER/FATTER than IMAGE A
+  - Shoulder width proportional to face as shown in IMAGE A
+  - Generate a body that IS the same person, not an idealized body
+  - If face appears fuller, keep the body proportionally similar
+  - The clothing fits on THIS person's actual body shape
 
-  3. **OUTFIT COMPLETION (SMART STYLING)**:
-     - **Identify the Item Type in IMAGE B**:
-       - If TOP (Shirt, Jacket, Hoodie): You MUST generate matching bottoms (e.g., denim jeans, chinos, cargo pants) and shoes to complete the look.
-       - If BOTTOM (Pants, Skirt): Generate a matching neutral or stylish top and shoes.
-       - If FOOTWEAR: Generate a full outfit that highlights the shoes.
-       - If ACCESSORY (Bag, Hat, Jewelry): Generate a full outfit that suits the accessory.
-     - **Color Coordination**: Ensure the generated items color-match the input item.
+  === OUTFIT COMPLETION (FULL FIT MODE) ===
+  Identify what IMAGE B shows and complete the outfit:
+  - If TOP (shirt/jacket/hoodie): Generate matching bottoms (jeans/trousers) + footwear
+  - If BOTTOM (pants/skirt): Generate matching top + footwear
+  - If FOOTWEAR: Generate complete outfit highlighting the shoes
+  - If ACCESSORY: Generate full outfit complementing the accessory
+  
+  Color coordinate all pieces. Keep style cohesive.
 
-  4. **PHOTOREALISTIC INTEGRATION**:
-     - **LIGHTING MATCH**: The lighting on the cloth MUST match the lighting on the face.
-     - **AMBIENT OCCLUSION**: Cast realistic shadows from the cloth onto the skin (e.g., collar shadow on neck, sleeve shadow on arm).
-     - **TEXTURE**: Keep the high-frequency details of the cloth (fabric weave, stitching, logos).
+  === CLOTHING APPLICATION ===
+  - Natural draping following the person's ACTUAL body shape
+  - Realistic shadows and wrinkles based on body contours
+  - Preserve all clothing details: fabric texture, patterns, logos, stitching
+  - Match lighting between face, body, and clothing
 
-  OUTPUT: A 4K, RAW-style photograph. No AI gloss. No cartoon effects. The user must look like they are physically standing there wearing the item.
+  === OUTPUT ===
+  Full body shot (head to toe), professional fashion photography, 
+  photorealistic quality, studio lighting, clean background.
+
+  Generate the try-on image now.
   `;
 
   try {
@@ -104,12 +117,12 @@ export const generateTryOnImage = async (
     const win = window as any;
     if (
       (error.message?.includes("Requested entity was not found") ||
-       error.status === 403 ||
-       error.message?.includes("PERMISSION_DENIED")) &&
+        error.status === 403 ||
+        error.message?.includes("PERMISSION_DENIED")) &&
       win.aistudio?.openSelectKey
     ) {
-       await win.aistudio.openSelectKey();
-       throw new Error("Access Denied. Please select a valid API Key.");
+      await win.aistudio.openSelectKey();
+      throw new Error("Access Denied. Please select a valid API Key.");
     }
 
     throw new Error(error.message || "Failed to generate realistic image. Please try again.");
@@ -130,7 +143,7 @@ export const getStyleRecommendations = async (
       model: 'gemini-3-flash-preview',
       contents: {
         parts: [
-          { 
+          {
             text: `You are a fashion stylist. 
             1. Analyze this fashion item (it could be a shirt, pants, shoes, or accessory).
             2. Based on what it is, suggest ONE specific COMPLEMENTARY item to complete the look (e.g., if it's a shirt, suggest pants; if pants, suggest a shirt).
