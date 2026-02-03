@@ -1,8 +1,12 @@
 import { GoogleGenAI } from '@google/genai';
 import type { TryOnMode } from '@mrrx/shared';
+import { swapFaceHighQuality } from './face-swap';
 
 // Initialize Gemini client
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+
+// Feature flag for face swap post-processing
+const ENABLE_FACE_SWAP = process.env.REPLICATE_API_TOKEN ? true : false;
 
 // Model - Gemini 3 Pro Image Preview (Nano Banana Pro)
 // State-of-the-art image generation with advanced reasoning ("Thinking")
@@ -12,125 +16,145 @@ const TEXT_MODEL = 'gemini-2.0-flash';
 type Gender = 'male' | 'female';
 
 /**
- * System instruction for hyper-accurate virtual try-on
- * Strict identity preservation with zero face changes
+ * System instruction for virtual try-on - optimized for REALISTIC output
+ * Generates high-quality base for face-swap post-processing
  */
-const SYSTEM_INSTRUCTION = `You are a hyper-accurate virtual try-on engine.
+const SYSTEM_INSTRUCTION = `You are an AI creating REALISTIC virtual try-on images.
 
-Your sole task is to generate a realistic preview of how a selected clothing item will look on the user, while preserving the user's identity with absolute fidelity.
+YOUR TASK: Generate a photorealistic image of a person wearing the clothing from Image 2.
+The image should look like a real photograph - natural, not AI-generated looking.
 
-You must treat the user's face and body identity as immutable.
-No creative interpretation is allowed on facial features or identity.
+═══════════════════════════════════════════════════════════════════
+                    REALISM REQUIREMENTS
+═══════════════════════════════════════════════════════════════════
 
-IMAGE ROLE DEFINITION:
+CRITICAL FOR REALISTIC OUTPUT:
 
-Image 1: This is the user's reference image.
-It defines the user's exact identity, including:
-- Face structure
-- Skin tone
-- Facial features
-- Hairline
-- Hair texture
-- Facial expression
-- Body proportions (as visible)
+1. NATURAL LIGHTING
+   - Use soft, natural lighting (not flat or artificial)
+   - Consistent shadows across face, neck, and body
+   - Light direction should be realistic (typically from above-front)
 
-Image 2: This is the clothing reference image.
-It defines ONLY the clothing:
-- Fabric
-- Color
-- Texture
-- Stitching
-- Fit
-- Sleeves
-- Length
-- Patterns
+2. PROPER BODY PROPORTIONS
+   - Match the body proportions from Image 1
+   - Natural human anatomy - no stretched or distorted limbs
+   - Shoulders, arms, torso should look realistic
 
-STRICT IDENTITY PRESERVATION RULES (NON-NEGOTIABLE):
+3. CLOTHING REALISM
+   - Fabric should drape naturally on the body
+   - Show realistic wrinkles and folds
+   - Proper fit for the body type
+   - Accurate colors and textures from Image 2
 
-- The output face must be a 100% replica of Image 1
-- Do NOT alter:
-  - Face shape
-  - Jawline
-  - Nose size or shape
-  - Eye size, spacing, or angle
-  - Eyebrows
-  - Lips
-  - Skin tone
-  - Facial symmetry
-  - Age
-  - Gender expression
+4. SKIN TONES
+   - Match the skin tone from Image 1 EXACTLY
+   - Consistent color from face to neck to hands
+   - Natural skin texture (not plastic or smoothed)
 
-- Do NOT beautify, stylize, or enhance the face
-- Do NOT apply filters, smoothing, or artistic changes
-- Do NOT modify hairstyle unless hidden naturally by the clothing
-- Do NOT replace or hallucinate facial details
+5. POSE & ANGLE
+   - Keep similar pose/angle as Image 1
+   - Front-facing or slight angle works best
+   - Natural, relaxed posture
 
-The face is a LOCKED ASSET - treat it as immutable.
+═══════════════════════════════════════════════════════════════════
+                    AVOID THESE (makes it look fake)
+═══════════════════════════════════════════════════════════════════
 
-CLOTHING APPLICATION RULES:
+❌ Over-smoothed skin (plastic look)
+❌ Unnatural body proportions
+❌ Flat or harsh lighting
+❌ Clothing that doesn't follow body contours
+❌ Mismatched shadows
+❌ Blurry or low-detail areas
+❌ Skin tone that doesn't match Image 1
 
-- Apply ONLY the clothing from Image 2 onto the user in Image 1
-- Maintain:
-  - Original clothing color
-  - Fabric texture
-  - Logos, prints, embroidery
-  - Wrinkles and folds
-  - Fit style (loose, slim, oversized)
+═══════════════════════════════════════════════════════════════════
+                    IDENTITY PRESERVATION
+═══════════════════════════════════════════════════════════════════
 
-- The clothing must follow the user's body posture naturally
-- Adjust folds and drape realistically based on the user's pose
-- Respect lighting consistency with Image 1
+PRESERVE from Image 1:
+✓ Face features and structure
+✓ Skin tone and complexion
+✓ Hair color and style
+✓ Body proportions
+✓ Similar pose/angle
 
-REALISM REQUIREMENTS:
-
-- Photorealistic output
-- Natural shadows and lighting
-- Correct depth and perspective
-- Seamless blending between skin and clothing
-- No visible cut lines, artifacts, or warping
-- The output should look like a real photo taken by a camera
-
-FAILURE CONDITIONS:
-
-If the clothing from Image 2 cannot be realistically applied due to pose, angle, or occlusion:
-- Preserve the user's identity fully
-- Apply the clothing as accurately as possible without distortion
-- Never compromise facial accuracy to fit the clothing`;
+The output should look like a professional fashion photograph
+of the SAME person from Image 1 wearing new clothes.`;
 
 /**
  * Build the try-on prompt based on mode
+ * Optimized for REALISTIC output that works well with face-swap
  */
 const buildTryOnPrompt = (gender: Gender, mode: TryOnMode): string => {
   const person = gender === 'female' ? 'woman' : 'man';
   const pronoun = gender === 'female' ? 'her' : 'his';
 
   const modeInstructions = mode === 'FULL_FIT'
-    ? `FULL OUTFIT MODE:
-- Use the garment from Image 2 as the main piece
-- Create a complete coordinated outfit
-- Add matching bottom wear, accessories, footwear
-- Full body shot showing the complete look`
-    : `SINGLE ITEM MODE:
-- Place ONLY the garment from Image 2 on the ${person}
-- Keep the rest of ${pronoun} outfit as appropriate
-- Focus on how this specific garment fits ${pronoun}`;
+    ? `Create a complete styled outfit look.`
+    : `Apply ONLY the specific garment from Image 2.`;
 
-  return `TASK: Virtual Try-On
+  return `═══════════════════════════════════════════════════════════════
+                    REALISTIC VIRTUAL TRY-ON
+═══════════════════════════════════════════════════════════════
 
-Image 1 is the ${person}'s identity reference - this face must be preserved with 100% accuracy.
-Image 2 is the clothing reference - apply this clothing onto the person.
+Create a PHOTOREALISTIC image of the person from Image 1 wearing
+the clothing from Image 2.
+
+The result must look like a REAL PHOTOGRAPH - not AI-generated.
+
+═══════════════════════════════════════════════════════════════
+                    REALISM CHECKLIST
+═══════════════════════════════════════════════════════════════
+
+✓ Natural lighting with soft shadows
+✓ Skin texture looks real (not plastic/smoothed)
+✓ Clothing has natural wrinkles and folds
+✓ Body proportions are anatomically correct
+✓ Same skin tone as Image 1 (face, neck, hands must match)
+✓ Hair looks natural and detailed
+✓ Similar pose/angle to Image 1
+
+═══════════════════════════════════════════════════════════════
+                    CLOTHING APPLICATION
+═══════════════════════════════════════════════════════════════
 
 ${modeInstructions}
 
-CRITICAL REQUIREMENTS:
-- The output face must be IDENTICAL to Image 1 - not similar, IDENTICAL
-- Every facial feature must match exactly: eyes, nose, lips, skin tone, face shape
-- The person's friends and family must be able to recognize them instantly
-- Apply the clothing naturally with realistic draping and shadows
-- Professional fashion photography quality
-- Photorealistic result
+From Image 2, capture:
+• Exact garment style and design
+• Fabric color and pattern
+• Texture and material appearance
+• Design details (buttons, collar, etc.)
 
-Generate the try-on image now.`;
+Apply clothing realistically:
+• Natural draping on ${pronoun} body shape
+• Proper fit for ${pronoun} proportions
+• Realistic fabric behavior (wrinkles, folds)
+• Appropriate shadows under clothing
+
+═══════════════════════════════════════════════════════════════
+                    IDENTITY PRESERVATION
+═══════════════════════════════════════════════════════════════
+
+From Image 1, preserve:
+• Face structure and features
+• Skin tone (EXACT shade - very important)
+• Hair color and style
+• Body proportions
+• Similar pose/angle
+
+═══════════════════════════════════════════════════════════════
+                    QUALITY STANDARDS
+═══════════════════════════════════════════════════════════════
+
+The output should look like:
+• A professional fashion photograph
+• Shot in good lighting conditions
+• Of a real person (not a mannequin or CGI)
+• High detail and clarity
+
+Generate the realistic try-on image now.`;
 };
 
 /**
@@ -171,7 +195,7 @@ export async function generateTryOnImage(
     console.log(`Selfie size: ${cleanSelfie.length} chars, Product size: ${cleanProduct.length} chars`);
 
     // Generate with Gemini Image Model
-    // Using the correct API format with system instruction
+    // Using strict identity preservation with clothing-only modification
     const response = await client.models.generateContent({
       model: IMAGE_MODEL,
       contents: [
@@ -179,7 +203,20 @@ export async function generateTryOnImage(
           role: 'user',
           parts: [
             {
-              text: '📷 IMAGE 1 - USER IDENTITY REFERENCE (preserve this face exactly):'
+              text: `📸 IMAGE 1 - THE PERSON (Reference)
+
+This is the person who will wear the outfit. Study:
+
+APPEARANCE TO PRESERVE:
+• Face features and structure
+• Skin tone - EXACT shade (very important for realism)
+• Hair color and style
+• Body proportions and build
+• Pose/angle (use similar)
+
+IMPORTANT FOR REALISM:
+The skin tone must be consistent from face to neck to any visible skin.
+Match the lighting and shadow style from this image.`
             },
             {
               inlineData: {
@@ -188,7 +225,19 @@ export async function generateTryOnImage(
               },
             },
             {
-              text: '👗 IMAGE 2 - CLOTHING REFERENCE (apply this clothing):'
+              text: `👔 IMAGE 2 - THE CLOTHING (To Apply)
+
+Extract the clothing from this image:
+• Garment type and style
+• Fabric color, pattern, texture
+• Design details (buttons, collar, etc.)
+
+Apply this outfit onto the person from Image 1.
+Make sure the clothing:
+• Drapes naturally on their body
+• Has realistic wrinkles and folds
+• Fits their body proportions
+• Casts natural shadows`
             },
             {
               inlineData: {
@@ -203,7 +252,7 @@ export async function generateTryOnImage(
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         responseModalities: ['TEXT', 'IMAGE'],
-        // High resolution output
+        // High resolution output for better face detail
         imageConfig: {
           aspectRatio: '3:4', // Portrait orientation for fashion
           imageSize: '2K',    // High quality output
@@ -271,7 +320,25 @@ export async function generateTryOnImage(
             : data;
 
           console.log(`Try-on image generated successfully with ${IMAGE_MODEL} (${cleanData.length} chars)`);
-          return `data:${mimeType};base64,${cleanData}`;
+
+          const geminiResult = `data:${mimeType};base64,${cleanData}`;
+
+          // CRITICAL: Apply face swap to guarantee 100% face preservation
+          // Gemini generates good clothing but often changes the face
+          // Face swap replaces the generated face with the user's ACTUAL face
+          if (ENABLE_FACE_SWAP) {
+            console.log('[FaceSwap] Applying face swap for 100% identity preservation...');
+            try {
+              const faceSwappedResult = await swapFaceHighQuality(selfieBase64, geminiResult);
+              console.log('[FaceSwap] Face swap completed - user\'s exact face preserved');
+              return faceSwappedResult;
+            } catch (faceSwapError) {
+              console.error('[FaceSwap] Face swap failed, returning Gemini result:', faceSwapError);
+              return geminiResult;
+            }
+          }
+
+          return geminiResult;
         }
 
         // Check alternative formats - some Gemini versions use different structures
@@ -281,7 +348,17 @@ export async function generateTryOnImage(
           const data = imageData.data;
           if (data && data.length > 100) {
             console.log(`Found image in alternative format (${data.length} chars)`);
-            return `data:${mimeType};base64,${data}`;
+            const altResult = `data:${mimeType};base64,${data}`;
+
+            // Apply face swap for alternative format too
+            if (ENABLE_FACE_SWAP) {
+              try {
+                return await swapFaceHighQuality(selfieBase64, altResult);
+              } catch {
+                return altResult;
+              }
+            }
+            return altResult;
           }
         }
 

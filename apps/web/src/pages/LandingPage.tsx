@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/auth-store';
+import { useState, useEffect } from 'react';
 import {
   Zap,
   Palette,
@@ -33,81 +34,249 @@ const GridBackground = () => (
   </div>
 );
 
-// Showcase Images for 3D Carousel
-const showcaseImages = [
-  '/demo/showcase-1.jpg',
-  '/demo/showcase-2.jpg',
-  '/demo/showcase-3.jpg',
-  '/demo/showcase-4.jpg',
-  '/demo/showcase-5.jpg',
+// Demo showcase data - same person in input and result (simulating try-on)
+const showcaseExamples = [
+  {
+    id: 1,
+    // Same woman - input (plain) vs result (formal dress)
+    inputImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=600&fit=crop&crop=face',
+    resultImage: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=600&fit=crop',
+    clothImage: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=400&h=600&fit=crop',
+    label: 'Evening Gown',
+  },
+  {
+    id: 2,
+    // Same man - input vs result (formal suit)
+    inputImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&crop=face',
+    resultImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop',
+    clothImage: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=400&h=600&fit=crop',
+    label: 'Designer Suit',
+  },
+  {
+    id: 3,
+    // Same woman - input vs result (floral dress)
+    inputImage: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=600&fit=crop&crop=face',
+    resultImage: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=600&fit=crop',
+    clothImage: 'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=400&h=600&fit=crop',
+    label: 'Floral Dress',
+  },
+  {
+    id: 4,
+    // Same man - input vs result (casual blazer)
+    inputImage: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=600&fit=crop&crop=face',
+    resultImage: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=600&fit=crop',
+    clothImage: 'https://images.unsplash.com/photo-1617127365659-c47fa864d8bc?w=400&h=600&fit=crop',
+    label: 'Smart Casual',
+  },
+  {
+    id: 5,
+    // Same woman - input vs result (traditional)
+    inputImage: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400&h=600&fit=crop&crop=face',
+    resultImage: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400&h=600&fit=crop',
+    clothImage: 'https://images.unsplash.com/photo-1583391733956-6c78276477e2?w=400&h=600&fit=crop',
+    label: 'Traditional Saree',
+  },
+  {
+    id: 6,
+    // Another woman - input vs result
+    inputImage: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400&h=600&fit=crop&crop=face',
+    resultImage: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400&h=600&fit=crop',
+    clothImage: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400&h=600&fit=crop',
+    label: 'Summer Dress',
+  },
 ];
 
-// 3D Carousel Component
+// Infinite Scrolling Carousel Component
 const Carousel3D = () => {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const totalItems = showcaseExamples.length;
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % totalItems);
+    }, 3000); // Change card every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [totalItems]);
+
+  // Calculate position and styling for each card
+  const getCardStyle = (index: number) => {
+    // Calculate relative position from active index
+    let position = index - activeIndex;
+
+    // Wrap around for infinite effect
+    if (position > totalItems / 2) position -= totalItems;
+    if (position < -totalItems / 2) position += totalItems;
+
+    const isCenter = position === 0;
+    const isVisible = Math.abs(position) <= 2;
+
+    // Calculate transforms based on position
+    const translateX = position * 300; // Card width + gap
+    const scale = isCenter ? 1.1 : Math.max(0.75, 1 - Math.abs(position) * 0.12);
+    const opacity = isCenter ? 1 : Math.max(0.4, 1 - Math.abs(position) * 0.3);
+    const zIndex = 10 - Math.abs(position);
+
+    return {
+      translateX,
+      scale,
+      opacity: isVisible ? opacity : 0,
+      zIndex,
+      isCenter,
+      isVisible,
+    };
+  };
+
   return (
-    <div className="relative w-full overflow-hidden py-10 perspective-container flex justify-center mb-24">
-      <div className="flex items-center justify-center gap-4 md:gap-8 min-w-max px-4">
-        {/* Left Card 2 (Far Left) */}
-        <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 dither-mask transform opacity-40 grayscale card-3d translate-x-12 scale-90 hidden lg:block">
-          <div className="w-full h-full bg-gradient-to-br from-green-500/20 to-purple-500/20 flex items-center justify-center">
-            <span className="text-4xl">👗</span>
-          </div>
-        </div>
+    <div className="relative w-full overflow-hidden py-10 mb-24">
+      {/* Left fade gradient */}
+      <div className="absolute left-0 top-0 bottom-0 w-32 md:w-64 bg-gradient-to-r from-[#050505] via-[#050505]/80 to-transparent z-30 pointer-events-none"></div>
 
-        {/* Left Card 1 */}
-        <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 dither-mask transform opacity-60 grayscale card-3d translate-x-4 scale-95 hidden md:block">
-          <div className="w-full h-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center">
-            <span className="text-4xl">👔</span>
-          </div>
-        </div>
+      {/* Right fade gradient */}
+      <div className="absolute right-0 top-0 bottom-0 w-32 md:w-64 bg-gradient-to-l from-[#050505] via-[#050505]/80 to-transparent z-30 pointer-events-none"></div>
 
-        {/* Center Main Card */}
-        <div className="relative w-64 h-80 md:w-80 md:h-96 rounded-2xl overflow-hidden border border-green-500/30 shadow-[0_0_50px_rgba(34,197,94,0.2)] z-20 bg-[#050505]">
-          {/* Scanline effect */}
-          <div className="absolute inset-0 z-30 pointer-events-none scanline mix-blend-screen w-1/2 h-full opacity-50"></div>
+      {/* Carousel container */}
+      <div className="relative flex items-center justify-center h-[420px] md:h-[480px]">
+        {showcaseExamples.map((item, idx) => {
+          const style = getCardStyle(idx);
 
-          {/* Center Line */}
-          <div className="absolute inset-y-0 left-1/2 w-[1px] bg-green-400 z-40 shadow-[0_0_15px_#4ade80]"></div>
+          return (
+            <div
+              key={item.id}
+              className="absolute will-change-transform"
+              style={{
+                transform: `translateX(${style.translateX}px) scale(${style.scale})`,
+                opacity: style.opacity,
+                zIndex: style.zIndex,
+                transition: 'transform 600ms cubic-bezier(0.4, 0, 0.2, 1), opacity 600ms cubic-bezier(0.4, 0, 0.2, 1)',
+              }}
+            >
+              {/* Unified card structure - same DOM for center and side cards */}
+              <div
+                className={cn(
+                  "relative w-64 h-80 md:w-72 md:h-[360px] rounded-2xl overflow-hidden bg-[#050505] transition-all duration-600",
+                  style.isCenter
+                    ? "border-2 border-green-500/60 shadow-[0_0_40px_rgba(34,197,94,0.3)]"
+                    : "border border-white/10"
+                )}
+              >
+                {/* Center Line Glow - always present, opacity controlled */}
+                <div
+                  className="absolute inset-y-0 left-1/2 w-[3px] bg-green-400 z-40 -translate-x-1/2 transition-all duration-600"
+                  style={{
+                    opacity: style.isCenter ? 1 : 0,
+                    boxShadow: style.isCenter ? '0 0 20px #4ade80, 0 0 40px #4ade80' : 'none',
+                  }}
+                />
 
-          <div className="grid grid-cols-2 h-full">
-            {/* Left half (Dithered/Grayscale) */}
-            <div className="relative h-full overflow-hidden dither-mask grayscale brightness-150 contrast-125">
-              <div className="absolute inset-0 bg-gradient-to-br from-gray-500/30 to-gray-700/30 flex items-center justify-center">
-                <div className="text-center">
-                  <Camera className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-                  <p className="text-xs text-gray-400">Your Photo</p>
+                <div className="grid grid-cols-2 h-full">
+                  {/* Left half - Input Photo */}
+                  <div className="relative h-full overflow-hidden">
+                    <img
+                      src={item.inputImage}
+                      alt="Input photo"
+                      className={cn(
+                        "w-full h-full object-cover grayscale transition-all duration-600",
+                        style.isCenter ? "brightness-90" : "brightness-[0.6]"
+                      )}
+                    />
+                    <div
+                      className="absolute inset-0 bg-gradient-to-r from-transparent to-black/30 transition-opacity duration-600"
+                      style={{ opacity: style.isCenter ? 1 : 0.5 }}
+                    />
+                    {/* INPUT label - fades in for center */}
+                    <div
+                      className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-sm px-2 py-1 rounded-md transition-opacity duration-600"
+                      style={{ opacity: style.isCenter ? 1 : 0 }}
+                    >
+                      <p className="text-[10px] text-gray-300 font-medium tracking-wide">INPUT</p>
+                    </div>
+                  </div>
+
+                  {/* Right half - Try-On Result */}
+                  <div className="relative h-full overflow-hidden">
+                    <img
+                      src={item.clothImage}
+                      alt="Try-on result"
+                      className={cn(
+                        "w-full h-full object-cover transition-all duration-600",
+                        style.isCenter ? "" : "grayscale brightness-[0.6]"
+                      )}
+                    />
+                    <div
+                      className="absolute inset-0 bg-gradient-to-l from-transparent to-black/30 transition-opacity duration-600"
+                      style={{ opacity: style.isCenter ? 1 : 0.5 }}
+                    />
+                    {/* RESULT label - fades in for center */}
+                    <div
+                      className="absolute bottom-3 right-3 bg-green-500/90 backdrop-blur-sm px-2 py-1 rounded-md transition-opacity duration-600"
+                      style={{ opacity: style.isCenter ? 1 : 0 }}
+                    >
+                      <p className="text-[10px] text-white font-medium tracking-wide">RESULT</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Center divider line for non-center cards */}
+                <div
+                  className="absolute inset-y-0 left-1/2 w-[1px] bg-white/20 -translate-x-1/2 transition-opacity duration-600"
+                  style={{ opacity: style.isCenter ? 0 : 1 }}
+                />
+
+                {/* Drag indicator - fades in for center */}
+                <div
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-10 h-10 rounded-full bg-green-500 border-2 border-white shadow-[0_0_20px_rgba(34,197,94,0.5)] flex items-center justify-center transition-all duration-600"
+                  style={{
+                    opacity: style.isCenter ? 1 : 0,
+                    transform: `translate(-50%, -50%) scale(${style.isCenter ? 1 : 0.5})`,
+                  }}
+                >
+                  <div className="flex gap-0.5">
+                    <div className="w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-r-[6px] border-r-white"></div>
+                    <div className="w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-l-[6px] border-l-white"></div>
+                  </div>
+                </div>
+
+                {/* Bottom gradient with label */}
+                <div
+                  className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-3 pt-8 transition-opacity duration-600"
+                  style={{ opacity: style.isCenter ? 0 : 1 }}
+                >
+                  <p className="text-xs text-white/60 text-center">{item.label}</p>
+                </div>
+
+                {/* Label for center card - below the card */}
+                <div
+                  className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-sm text-green-400 font-medium whitespace-nowrap transition-opacity duration-600"
+                  style={{ opacity: style.isCenter ? 1 : 0 }}
+                >
+                  {item.label}
                 </div>
               </div>
             </div>
-            {/* Right half (Full Color) */}
-            <div className="relative h-full overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center">
-                <div className="text-center">
-                  <Shirt className="w-12 h-12 mx-auto mb-2 text-green-400" />
-                  <p className="text-xs text-green-400">Try-On Result</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+          );
+        })}
+      </div>
 
-        {/* Right Card 1 */}
-        <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 dither-mask transform opacity-60 grayscale card-3d -translate-x-4 scale-95 hidden md:block">
-          <div className="w-full h-full bg-gradient-to-br from-pink-500/20 to-rose-500/20 flex items-center justify-center">
-            <span className="text-4xl">👚</span>
-          </div>
-        </div>
-
-        {/* Right Card 2 (Far Right) */}
-        <div className="relative w-48 h-64 md:w-64 md:h-80 rounded-2xl overflow-hidden border border-white/10 dither-mask transform opacity-40 grayscale card-3d -translate-x-12 scale-90 hidden lg:block">
-          <div className="w-full h-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center">
-            <span className="text-4xl">🧥</span>
-          </div>
-        </div>
+      {/* Navigation dots */}
+      <div className="flex justify-center gap-2 mt-8">
+        {showcaseExamples.map((_, idx) => (
+          <button
+            key={idx}
+            onClick={() => setActiveIndex(idx)}
+            className={cn(
+              "w-2 h-2 rounded-full transition-all duration-300",
+              idx === activeIndex
+                ? "w-6 bg-green-500"
+                : "bg-white/20 hover:bg-white/40"
+            )}
+            aria-label={`Go to slide ${idx + 1}`}
+          />
+        ))}
       </div>
 
       {/* Bottom Fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#050505] to-transparent z-20 pointer-events-none"></div>
+      <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#050505] to-transparent z-20 pointer-events-none"></div>
     </div>
   );
 };
@@ -132,15 +301,6 @@ const features = [
     description: 'Export your try-on results in high resolution. Perfect for sharing or comparing outfits.',
     color: 'text-blue-400',
   },
-];
-
-// Brand partners
-const brandPartners = [
-  { name: 'Myntra', icon: 'simple-icons:flipkart' },
-  { name: 'Ajio', icon: 'simple-icons:flipkart' },
-  { name: 'Amazon', icon: 'simple-icons:amazon' },
-  { name: 'Flipkart', icon: 'simple-icons:flipkart' },
-  { name: 'Meesho', icon: 'simple-icons:flipkart' },
 ];
 
 // Pricing tiers
