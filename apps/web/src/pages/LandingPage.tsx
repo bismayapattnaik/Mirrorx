@@ -381,8 +381,8 @@ export default function LandingPage() {
       <nav className="relative z-50 w-full border-b border-white/5 bg-[#050505]/50 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-green-500 rounded-sm"></div>
-            <span className="font-medium tracking-tight text-white">MirrorX</span>
+            <img src="/logo.png" alt="MirrorX" className="w-7 h-7 object-contain" />
+            <span className="font-medium tracking-tight text-white">Mirror<span className="text-emerald-500">X</span></span>
           </Link>
 
           <div className="hidden md:flex items-center gap-6 text-sm font-medium">
@@ -723,8 +723,8 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-4 gap-8 mb-8">
             <div>
               <Link to="/" className="flex items-center gap-2 mb-4">
-                <div className="w-6 h-6 bg-green-500 rounded-sm"></div>
-                <span className="font-medium text-white">MirrorX</span>
+                <img src="/logo.png" alt="MirrorX" className="w-7 h-7 object-contain" />
+                <span className="font-medium text-white">Mirror<span className="text-emerald-500">X</span></span>
               </Link>
               <p className="text-sm text-gray-500">
                 AI-powered virtual try-on for Indian fashion.

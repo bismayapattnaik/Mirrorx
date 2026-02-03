@@ -33,55 +33,26 @@ export const generateTryOnImage = async (
 
   console.log(`Generating with model: ${modelName}`);
 
-  const promptText = `
-  VIRTUAL TRY-ON ENGINE - IDENTITY CLONING MODE
+  const promptText = `VIRTUAL TRY-ON:
 
-  === INPUTS ===
-  IMAGE A (Person Reference): The user's EXACT face and body type to preserve
-  IMAGE B (Garment Reference): The fashion item to apply
+Generate a photorealistic fashion photo of the person from Image 1 wearing clothing from Image 2.
 
-  === MISSION ===
-  Clone the EXACT person from IMAGE A and dress them in clothing from IMAGE B.
-  The output must show the SAME PERSON - same face, same body type, same weight.
+FULL OUTFIT MODE:
+- Image 2's garment is the HERO PIECE
+- Add matching complementary pieces (complete outfit)
+- Show FULL BODY from head to toe
 
-  === FACE PRESERVATION (100% CLONE - CRITICAL) ===
-  - Copy the face from IMAGE A with pixel-perfect accuracy
-  - Keep ALL: face shape, eye shape/size, nose, lips, jawline width
-  - Keep ALL: skin tone, texture, pores, marks, lines, imperfections
-  - NO beautification - no smoothing, no slimming, no enhancement
-  - Face width and fullness must be EXACTLY as in IMAGE A
-  - The person's family must recognize them INSTANTLY
+CRITICAL - SKIN TONE CONSISTENCY:
+- Study Image 1's face skin tone CAREFULLY
+- The body's skin (neck, arms, hands) MUST be the EXACT SAME skin tone as the face
+- Consistent lighting across entire body - no color shifts
+- This is crucial for realism
 
-  === BODY PRESERVATION (SAME WEIGHT/BUILD - CRITICAL) ===
-  - The body type MUST match IMAGE A
-  - DO NOT make the person look THINNER than IMAGE A
-  - DO NOT make the person look HEAVIER/FATTER than IMAGE A
-  - Shoulder width proportional to face as shown in IMAGE A
-  - Generate a body that IS the same person, not an idealized body
-  - If face appears fuller, keep the body proportionally similar
-  - The clothing fits on THIS person's actual body shape
+PRESERVE from Image 1:
+- Body type and weight (do NOT slim or fatten)
 
-  === OUTFIT COMPLETION (FULL FIT MODE) ===
-  Identify what IMAGE B shows and complete the outfit:
-  - If TOP (shirt/jacket/hoodie): Generate matching bottoms (jeans/trousers) + footwear
-  - If BOTTOM (pants/skirt): Generate matching top + footwear
-  - If FOOTWEAR: Generate complete outfit highlighting the shoes
-  - If ACCESSORY: Generate full outfit complementing the accessory
-  
-  Color coordinate all pieces. Keep style cohesive.
-
-  === CLOTHING APPLICATION ===
-  - Natural draping following the person's ACTUAL body shape
-  - Realistic shadows and wrinkles based on body contours
-  - Preserve all clothing details: fabric texture, patterns, logos, stitching
-  - Match lighting between face, body, and clothing
-
-  === OUTPUT ===
-  Full body shot (head to toe), professional fashion photography, 
-  photorealistic quality, studio lighting, clean background.
-
-  Generate the try-on image now.
-  `;
+OUTPUT: Professional fashion photo, photorealistic, seamless natural appearance.
+Generate now.`;
 
   try {
     const response = await ai.models.generateContent({

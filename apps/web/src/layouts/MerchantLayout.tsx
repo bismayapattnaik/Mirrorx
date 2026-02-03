@@ -63,11 +63,9 @@ export default function MerchantLayout() {
         {/* Logo */}
         <div className="p-4 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-              <Store className="w-6 h-6 text-white" />
-            </div>
+            <img src="/logo.png" alt="MirrorX" className="w-10 h-10 object-contain" />
             <div>
-              <h1 className="text-white font-bold text-lg">MirrorX</h1>
+              <h1 className="text-white font-bold text-lg">Mirror<span className="text-emerald-500">X</span></h1>
               <p className="text-white/50 text-xs">Merchant Portal</p>
             </div>
           </div>
