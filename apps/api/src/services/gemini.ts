@@ -16,145 +16,163 @@ const TEXT_MODEL = 'gemini-2.0-flash';
 type Gender = 'male' | 'female';
 
 /**
- * System instruction for virtual try-on - optimized for REALISTIC output
- * Generates high-quality base for face-swap post-processing
+ * System instruction for hyper-accurate virtual try-on
+ * Strict identity preservation with zero face/body changes
  */
-const SYSTEM_INSTRUCTION = `You are an AI creating REALISTIC virtual try-on images.
+const SYSTEM_INSTRUCTION = `You are a PRECISION virtual try-on engine.
 
-YOUR TASK: Generate a photorealistic image of a person wearing the clothing from Image 2.
-The image should look like a real photograph - natural, not AI-generated looking.
+=== YOUR MISSION ===
+Clone the EXACT person from Image 1 (same face, same body type, same weight) and dress them in clothing from Image 2.
 
-═══════════════════════════════════════════════════════════════════
-                    REALISM REQUIREMENTS
-═══════════════════════════════════════════════════════════════════
+CRITICAL: You are performing IDENTITY CLONING, not person generation.
+The output must show the SAME PERSON, not a similar-looking person.
 
-CRITICAL FOR REALISTIC OUTPUT:
+=== IMAGE DEFINITIONS ===
 
-1. NATURAL LIGHTING
-   - Use soft, natural lighting (not flat or artificial)
-   - Consistent shadows across face, neck, and body
-   - Light direction should be realistic (typically from above-front)
+📷 IMAGE 1 - PERSON REFERENCE (SACRED - DO NOT MODIFY):
+This defines the COMPLETE identity to preserve:
 
-2. PROPER BODY PROPORTIONS
-   - Match the body proportions from Image 1
-   - Natural human anatomy - no stretched or distorted limbs
-   - Shoulders, arms, torso should look realistic
+FACE (100% EXACT CLONE):
+- Face shape and structure (round, oval, square, etc.)
+- Jawline width and angle
+- Chin shape
+- Eye shape, size, color, spacing, eyelid crease
+- Nose shape, width, bridge height
+- Lip shape, thickness, color
+- Skin tone and undertones
+- Skin TEXTURE (pores, lines, marks - keep ALL imperfections)
+- Eyebrows (shape, thickness, arch)
+- Hairline and hair texture
+- Any moles, freckles, scars, beauty marks
+- Facial expression
 
-3. CLOTHING REALISM
-   - Fabric should drape naturally on the body
-   - Show realistic wrinkles and folds
-   - Proper fit for the body type
-   - Accurate colors and textures from Image 2
+BODY (100% MATCH - CRITICAL):
+- Body type and build (slim, average, athletic, heavy, etc.)
+- Body weight appearance (DO NOT CHANGE)
+- Shoulder width relative to body
+- Body proportions (torso/limb ratios)
+- Overall physique as visible in Image 1
 
-4. SKIN TONES
-   - Match the skin tone from Image 1 EXACTLY
-   - Consistent color from face to neck to hands
-   - Natural skin texture (not plastic or smoothed)
+👗 IMAGE 2 - CLOTHING REFERENCE (ONLY FOR GARMENT):
+Extract ONLY the clothing item(s):
+- Fabric, color, pattern
+- Fit style, design details
+- Logos, prints, embroidery
 
-5. POSE & ANGLE
-   - Keep similar pose/angle as Image 1
-   - Front-facing or slight angle works best
-   - Natural, relaxed posture
+=== BODY PRESERVATION RULES (CRITICAL - NON-NEGOTIABLE) ===
 
-═══════════════════════════════════════════════════════════════════
-                    AVOID THESE (makes it look fake)
-═══════════════════════════════════════════════════════════════════
+The generated body MUST be the SAME body type as Image 1:
 
-❌ Over-smoothed skin (plastic look)
-❌ Unnatural body proportions
-❌ Flat or harsh lighting
-❌ Clothing that doesn't follow body contours
-❌ Mismatched shadows
-❌ Blurry or low-detail areas
-❌ Skin tone that doesn't match Image 1
+✅ DO:
+- Estimate body type from Image 1 (visible proportions, face shape correlates with body)
+- Generate a body that IS the same person
+- Maintain the EXACT same apparent weight/build
+- Keep shoulder width proportional to face size as in Image 1
+- If only face is visible, infer body type from face shape and visible features
 
-═══════════════════════════════════════════════════════════════════
-                    IDENTITY PRESERVATION
-═══════════════════════════════════════════════════════════════════
+❌ ABSOLUTELY DO NOT:
+- Make the person look THINNER (no slimming)
+- Make the person look HEAVIER (no weight gain) 
+- Change body proportions
+- Use a "default" or "ideal" body type
+- Use a model-like body if the person isn't model-like
+- Add muscle definition not present in Image 1
+- Make the face appear fatter or thinner than Image 1
 
-PRESERVE from Image 1:
-✓ Face features and structure
-✓ Skin tone and complexion
-✓ Hair color and style
-✓ Body proportions
-✓ Similar pose/angle
+=== FACE PRESERVATION RULES (NON-NEGOTIABLE) ===
 
-The output should look like a professional fashion photograph
-of the SAME person from Image 1 wearing new clothes.`;
+The face MUST be a PIXEL-PERFECT clone:
+- IDENTICAL to Image 1 in every feature
+- NO beautification (no skin smoothing, no eye enlarging, no face slimming)
+- Keep ALL natural imperfections (pores, marks, lines, asymmetry)
+- EXACT same skin tone (no lightening or darkening)
+- Face width and fullness must MATCH Image 1 exactly
+- The person's family must recognize them INSTANTLY
+
+=== FACE-BODY CORRELATION ===
+
+IMPORTANT: Face and body must be consistent:
+- If Image 1 shows a slimmer face → generate a proportionally slim body
+- If Image 1 shows a fuller face → generate a proportionally fuller body
+- The face shape in output must MATCH Image 1 (don't make face fatter or thinner)
+- Face and body should look like they belong to the SAME person
+
+=== CLOTHING APPLICATION ===
+
+- Fit clothing naturally on the PRESERVED body (not a different body)
+- Clothing should drape according to the person's ACTUAL body shape from Image 1
+- Match lighting between face, body, and clothing
+- Keep all clothing details (patterns, logos, stitching)
+- Natural shadows and wrinkles based on body shape
+
+=== QUALITY VERIFICATION ===
+
+Before outputting, verify these checkboxes:
+□ Face is IDENTICAL to Image 1 (not similar, IDENTICAL)
+□ Face width/fullness MATCHES Image 1 (not fatter, not thinner)
+□ Body type MATCHES Image 1 (same weight appearance)
+□ Clothing fits naturally on this specific body type
+□ Lighting is consistent across face, body, and clothing
+□ Photorealistic quality (no AI smoothing artifacts)
+□ The person's mother would recognize them instantly`;
 
 /**
  * Build the try-on prompt based on mode
- * Optimized for REALISTIC output that works well with face-swap
  */
 const buildTryOnPrompt = (gender: Gender, mode: TryOnMode): string => {
   const person = gender === 'female' ? 'woman' : 'man';
   const pronoun = gender === 'female' ? 'her' : 'his';
 
   const modeInstructions = mode === 'FULL_FIT'
-    ? `Create a complete styled outfit look.`
-    : `Apply ONLY the specific garment from Image 2.`;
+    ? `FULL OUTFIT MODE (COMPLETE COORDINATED LOOK):
+- The garment from Image 2 is the HERO PIECE of this outfit
+- You MUST generate a COMPLETE styled outfit:
+  * If Image 2 shows a TOP (shirt/jacket/hoodie): Generate matching bottoms (jeans/trousers/skirt) + appropriate footwear
+  * If Image 2 shows BOTTOMS (pants/jeans/skirt): Generate a matching top + appropriate footwear
+  * If Image 2 shows FOOTWEAR: Generate a complete head-to-toe outfit that showcases the shoes
+  * If Image 2 shows an ACCESSORY (bag/watch/jewelry): Generate a full outfit that complements the accessory
+- All pieces must be COLOR COORDINATED (harmonious palette)
+- Style must be COHESIVE (casual with casual, formal with formal, ethnic with ethnic)
+- Show FULL BODY from head to toe
+- Every generated item should look like a real, purchasable product`
+    : `SINGLE ITEM MODE:
+- Apply ONLY the garment from Image 2 onto the ${person}
+- Keep ${pronoun} other clothing appropriate to the style
+- Focus on demonstrating how this specific garment fits ${pronoun}
+- 3/4 body or full body shot as appropriate`;
 
-  return `═══════════════════════════════════════════════════════════════
-                    REALISTIC VIRTUAL TRY-ON
-═══════════════════════════════════════════════════════════════
+  return `VIRTUAL TRY-ON TASK:
 
-Create a PHOTOREALISTIC image of the person from Image 1 wearing
-the clothing from Image 2.
-
-The result must look like a REAL PHOTOGRAPH - not AI-generated.
-
-═══════════════════════════════════════════════════════════════
-                    REALISM CHECKLIST
-═══════════════════════════════════════════════════════════════
-
-✓ Natural lighting with soft shadows
-✓ Skin texture looks real (not plastic/smoothed)
-✓ Clothing has natural wrinkles and folds
-✓ Body proportions are anatomically correct
-✓ Same skin tone as Image 1 (face, neck, hands must match)
-✓ Hair looks natural and detailed
-✓ Similar pose/angle to Image 1
-
-═══════════════════════════════════════════════════════════════
-                    CLOTHING APPLICATION
-═══════════════════════════════════════════════════════════════
+🔐 IMAGE 1 = THE PERSON TO CLONE (preserve this EXACT face AND body type)
+👗 IMAGE 2 = THE CLOTHING TO APPLY (extract ONLY the garment from this)
 
 ${modeInstructions}
 
-From Image 2, capture:
-• Exact garment style and design
-• Fabric color and pattern
-• Texture and material appearance
-• Design details (buttons, collar, etc.)
+=== CRITICAL PRESERVATION REQUIREMENTS ===
 
-Apply clothing realistically:
-• Natural draping on ${pronoun} body shape
-• Proper fit for ${pronoun} proportions
-• Realistic fabric behavior (wrinkles, folds)
-• Appropriate shadows under clothing
+1. FACE CLONING (100% IDENTICAL):
+   - The face MUST be a perfect clone of Image 1
+   - EVERY feature must match: eyes, nose, lips, skin tone, face shape, jawline
+   - Face width and fullness must be EXACTLY as in Image 1
+   - NO beautification - keep all pores, marks, texture, imperfections
+   - NO face thinning or fattening
+   - The ${person}'s family must recognize ${pronoun} INSTANTLY
 
-═══════════════════════════════════════════════════════════════
-                    IDENTITY PRESERVATION
-═══════════════════════════════════════════════════════════════
+2. BODY PRESERVATION (SAME WEIGHT/BUILD):
+   - The body type MUST match Image 1 (same apparent weight and build)
+   - DO NOT make the body thinner than in Image 1
+   - DO NOT make the body heavier than in Image 1
+   - Shoulder width proportional to face as shown in Image 1
+   - The clothing fits on THIS person's actual body, not an idealized body
 
-From Image 1, preserve:
-• Face structure and features
-• Skin tone (EXACT shade - very important)
-• Hair color and style
-• Body proportions
-• Similar pose/angle
+3. CLOTHING APPLICATION:
+   - Natural draping with realistic shadows and wrinkles
+   - Keep all patterns, logos, colors, and details from Image 2
+   - Lighting consistent between face, body, and clothing
 
-═══════════════════════════════════════════════════════════════
-                    QUALITY STANDARDS
-═══════════════════════════════════════════════════════════════
+OUTPUT: Photorealistic fashion photograph, professional studio lighting, clean background.
 
-The output should look like:
-• A professional fashion photograph
-• Shot in good lighting conditions
-• Of a real person (not a mannequin or CGI)
-• High detail and clarity
-
-Generate the realistic try-on image now.`;
+Generate the try-on image now.`;
 };
 
 /**
@@ -380,8 +398,8 @@ Make sure the clothing:
 
         // Check if the model is giving an error message
         if (textResponse.toLowerCase().includes('cannot') ||
-            textResponse.toLowerCase().includes('unable') ||
-            textResponse.toLowerCase().includes('sorry')) {
+          textResponse.toLowerCase().includes('unable') ||
+          textResponse.toLowerCase().includes('sorry')) {
           throw new Error(`Model declined to generate image: ${textResponse.substring(0, 200)}`);
         }
       }

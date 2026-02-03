@@ -3,7 +3,7 @@
  * Complete page component with onboarding flow and mirror view
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mirror3DOnboarding, Mirror3DView, STORAGE_KEYS } from '../../components/mirror3d';
 import type { UserProfile } from '../../components/mirror3d';
@@ -16,7 +16,7 @@ type ViewState = 'loading' | 'onboarding' | 'mirror';
 export function Mirror3DPage() {
   const navigate = useNavigate();
   const [viewState, setViewState] = useState<ViewState>('loading');
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [, setUserProfile] = useState<UserProfile | null>(null);
 
   // Check if calibration is complete on mount
   useEffect(() => {
@@ -57,17 +57,6 @@ export function Mirror3DPage() {
     navigate(-1);
   };
 
-  /**
-   * Handle reset calibration
-   */
-  const handleResetCalibration = () => {
-    localStorage.removeItem(STORAGE_KEYS.CALIBRATION_COMPLETE);
-    localStorage.removeItem(STORAGE_KEYS.USER_PROFILE);
-    setUserProfile(null);
-    setViewState('onboarding');
-  };
-
-  // Loading state
   if (viewState === 'loading') {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
