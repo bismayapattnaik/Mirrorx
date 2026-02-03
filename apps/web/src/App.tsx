@@ -42,6 +42,9 @@ import StaffDashboardPage from '@/pages/staff/StaffDashboardPage';
 // Demo Pages
 import BBAClothsDemo from '@/pages/demo/BBAClothsDemo';
 
+// 3D Mirror
+import Mirror3DPage from '@/pages/app/Mirror3DPage';
+
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -164,6 +167,17 @@ export default function App() {
 
         {/* Demo Pages */}
         <Route path="/demo/bba-cloths" element={<BBAClothsDemo />} />
+
+        {/* 3D Virtual Mirror (standalone, no auth required for demo) */}
+        <Route path="/mirror3d" element={<Mirror3DPage />} />
+        <Route
+          path="/app/mirror3d"
+          element={
+            <ProtectedRoute>
+              <Mirror3DPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Catch all */}
         <Route path="*" element={<Navigate to="/" replace />} />
