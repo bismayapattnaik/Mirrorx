@@ -35,19 +35,23 @@ export const generateTryOnImage = async (
 
   const promptText = `VIRTUAL TRY-ON:
 
-Generate a photorealistic image of the person from Image 1 wearing the clothing from Image 2.
+Generate a photorealistic fashion photo of the person from Image 1 wearing clothing from Image 2.
 
 FULL OUTFIT MODE:
 - Image 2's garment is the HERO PIECE
 - Add matching complementary pieces (complete outfit)
-- Color coordinate all pieces
-- Show FULL BODY head to toe
+- Show FULL BODY from head to toe
+
+CRITICAL - SKIN TONE CONSISTENCY:
+- Study Image 1's face skin tone CAREFULLY
+- The body's skin (neck, arms, hands) MUST be the EXACT SAME skin tone as the face
+- Consistent lighting across entire body - no color shifts
+- This is crucial for realism
 
 PRESERVE from Image 1:
-- Face features and skin tone
 - Body type and weight (do NOT slim or fatten)
 
-OUTPUT: Professional fashion photo, photorealistic, studio lighting.
+OUTPUT: Professional fashion photo, photorealistic, seamless natural appearance.
 Generate now.`;
 
   try {

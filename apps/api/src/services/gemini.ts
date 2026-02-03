@@ -17,29 +17,37 @@ type Gender = 'male' | 'female';
 
 /**
  * System instruction for virtual try-on
- * Optimized for speed + realism (face-swap will handle identity)
+ * Optimized for realistic output with consistent skin tone for face-swap
  */
 const SYSTEM_INSTRUCTION = `You are a virtual try-on AI creating REALISTIC fashion photos.
 
 INPUTS:
-- Image 1: Person reference (face, body type, skin tone)
+- Image 1: Person reference (face, body, skin tone - STUDY THIS CAREFULLY)
 - Image 2: Clothing to apply
 
 YOUR TASK:
-Generate a photorealistic image of the person from Image 1 wearing Image 2's clothing.
-The result must look like a REAL PHOTOGRAPH, not AI-generated.
+Generate a photorealistic fashion photo showing the person from Image 1 wearing Image 2's clothing.
 
-REQUIREMENTS:
-1. FACE: Copy face structure from Image 1. Same skin tone, same features.
-2. BODY: Match body type/weight from Image 1. Do NOT slim or fatten.
-3. CLOTHING: Natural draping, realistic wrinkles, proper fit.
-4. LIGHTING: Soft, natural studio lighting. Consistent shadows.
+CRITICAL REQUIREMENTS:
 
-QUALITY: Professional fashion photograph, photorealistic, high detail.`;
+1. SKIN TONE CONSISTENCY (MOST IMPORTANT):
+   - Study the EXACT skin tone from Image 1's face
+   - The generated body MUST have the IDENTICAL skin tone as the face
+   - Neck, arms, hands, any visible skin = SAME exact color as face
+   - No lighting differences between face area and body
+   - This is crucial for realism - mismatched skin tones look fake
+
+2. BODY TYPE: Match body proportions from Image 1. Do NOT slim or fatten.
+
+3. CLOTHING: Natural draping on the person's body shape. Realistic wrinkles and shadows.
+
+4. LIGHTING: Even, consistent lighting across the entire image (face and body).
+
+OUTPUT: Professional fashion photograph, photorealistic, seamless appearance.`;
 
 /**
  * Build the try-on prompt based on mode
- * Optimized for speed - face-swap handles identity
+ * Emphasizes skin tone matching for seamless face-swap
  */
 const buildTryOnPrompt = (gender: Gender, mode: TryOnMode): string => {
   const person = gender === 'female' ? 'woman' : 'man';
@@ -47,15 +55,17 @@ const buildTryOnPrompt = (gender: Gender, mode: TryOnMode): string => {
   if (mode === 'FULL_FIT') {
     return `FULL OUTFIT MODE:
 
-Generate a complete, coordinated outfit for this ${person}:
+Generate this ${person} wearing a complete coordinated outfit:
 - Image 2's garment is the HERO PIECE
-- Add matching complementary pieces (top + bottom + footwear)
-- Color coordinate all pieces
-- Show FULL BODY head to toe
+- Add matching complementary pieces (complete outfit)
+- Show FULL BODY from head to toe
 
-PRESERVE from Image 1: Face features, skin tone, body type/weight.
-OUTPUT: Photorealistic full-body fashion photo.
+CRITICAL - SKIN TONE:
+Study Image 1's face skin tone carefully.
+The body's skin (neck, arms, hands) MUST be the EXACT SAME skin tone.
+Lighting must be consistent across face and body - no color shifts.
 
+OUTPUT: Photorealistic full-body fashion photo with seamless, natural appearance.
 Generate now.`;
   }
 
@@ -63,11 +73,12 @@ Generate now.`;
 
 Apply the garment from Image 2 onto the ${person} from Image 1.
 
-PRESERVE from Image 1: Face features, skin tone, body type/weight.
-Apply clothing with natural draping and realistic fit.
+CRITICAL - SKIN TONE:
+Study Image 1's face skin tone carefully.
+All visible skin (neck, arms) MUST match this EXACT skin tone.
+Consistent lighting between face and body.
 
-OUTPUT: Photorealistic fashion photo.
-
+OUTPUT: Photorealistic fashion photo with natural, seamless appearance.
 Generate now.`;
 };
 
