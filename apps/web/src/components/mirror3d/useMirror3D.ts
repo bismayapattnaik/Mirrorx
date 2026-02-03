@@ -83,7 +83,7 @@ export function useMirror3D(options: UseMirror3DOptions): UseMirror3DReturn {
   const avatarRef = useRef<THREE.Object3D | null>(null);
   const boneMapRef = useRef<Map<string, THREE.Bone>>(new Map());
   const garmentsRef = useRef<Map<string, THREE.Object3D>>(new Map());
-  const clockRef = useRef<THREE.Clock>(new THREE.Clock());
+
   const animationFrameRef = useRef<number | null>(null);
 
   // MediaPipe refs
@@ -207,7 +207,7 @@ export function useMirror3D(options: UseMirror3DOptions): UseMirror3DReturn {
 
     const loader = new GLTFLoader();
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, _reject) => {
       // Use a standard humanoid model - we'll use a placeholder path
       // In production, this would be a proper humanoid GLB
       const avatarUrl = '/assets/avatar/humanoid.glb';
@@ -474,7 +474,6 @@ export function useMirror3D(options: UseMirror3DOptions): UseMirror3DReturn {
 
     if (nose && leftEar && rightEar && leftShoulder && rightShoulder) {
       const headCenter = leftEar.clone().add(rightEar).multiplyScalar(0.5);
-      const neckBase = leftShoulder.clone().add(rightShoulder).multiplyScalar(0.5);
       const headForward = nose.clone().sub(headCenter).normalize();
 
       const headRotation = new THREE.Quaternion();

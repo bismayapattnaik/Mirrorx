@@ -3,7 +3,7 @@
  * Handles camera permission, photo capture, and body calibration
  */
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Camera,
@@ -300,7 +300,7 @@ export function Mirror3DOnboarding({ onComplete, onSkip }: Mirror3DOnboardingPro
             <div className="text-center">
               <h2 className="text-xl font-bold text-white mb-1">
                 {photoType === 'front' ? 'Front View' :
-                 photoType === 'side' ? 'Side View' : '45° Angle View'}
+                  photoType === 'side' ? 'Side View' : '45° Angle View'}
               </h2>
               <p className="text-gray-400 text-sm">
                 {photoInstructions[photoType === 'angle45' ? 'angle45' : photoType]}
@@ -369,13 +369,12 @@ export function Mirror3DOnboarding({ onComplete, onSkip }: Mirror3DOnboardingPro
               {['front', 'side', 'angle45'].map((type) => (
                 <div
                   key={type}
-                  className={`w-3 h-3 rounded-full transition-colors ${
-                    capturedPhotos[type as keyof typeof capturedPhotos]
+                  className={`w-3 h-3 rounded-full transition-colors ${capturedPhotos[type as keyof typeof capturedPhotos]
                       ? 'bg-emerald-500'
                       : type === photoType
                         ? 'bg-white'
                         : 'bg-gray-600'
-                  }`}
+                    }`}
                 />
               ))}
             </div>

@@ -3,7 +3,7 @@
  * Live webcam feed with 3D avatar overlay
  */
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Camera,
@@ -19,8 +19,8 @@ import {
   Minimize2,
 } from 'lucide-react';
 import { useMirror3D } from './useMirror3D';
-import type { GarmentMetadata, BodyScales, TrackingStatus } from './types';
-import { SAMPLE_GARMENTS, STORAGE_KEYS } from './types';
+import type { GarmentMetadata, BodyScales } from './types';
+import { SAMPLE_GARMENTS } from './types';
 
 interface Mirror3DViewProps {
   onBack?: () => void;
@@ -43,7 +43,6 @@ export function Mirror3DView({ onBack }: Mirror3DViewProps) {
 
   // Mirror3D hook
   const {
-    isInitialized,
     isTracking,
     status,
     userProfile,
@@ -52,7 +51,6 @@ export function Mirror3DView({ onBack }: Mirror3DViewProps) {
     startTracking,
     stopTracking,
     equipGarment,
-    unequipGarment,
     updateBodyScales,
     saveUserProfile,
   } = useMirror3D({
@@ -196,10 +194,9 @@ export function Mirror3DView({ onBack }: Mirror3DViewProps) {
           {/* Tracking Confidence */}
           <div className="px-3 py-1.5 bg-black/50 backdrop-blur-sm rounded-lg flex items-center gap-2">
             <div
-              className={`w-2 h-2 rounded-full ${
-                status.confidence > 0.7 ? 'bg-emerald-400' :
+              className={`w-2 h-2 rounded-full ${status.confidence > 0.7 ? 'bg-emerald-400' :
                 status.confidence > 0.4 ? 'bg-yellow-400' : 'bg-red-400'
-              }`}
+                }`}
             />
             <span className="text-white text-sm">
               {Math.round(status.confidence * 100)}%
@@ -209,11 +206,10 @@ export function Mirror3DView({ onBack }: Mirror3DViewProps) {
           {/* Camera Toggle */}
           <button
             onClick={isTracking ? stopCamera : startCamera}
-            className={`p-2 rounded-lg backdrop-blur-sm transition-colors ${
-              isTracking
-                ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-            }`}
+            className={`p-2 rounded-lg backdrop-blur-sm transition-colors ${isTracking
+              ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+              : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+              }`}
           >
             {isTracking ? <Camera className="w-5 h-5" /> : <CameraOff className="w-5 h-5" />}
           </button>
@@ -331,11 +327,10 @@ export function Mirror3DView({ onBack }: Mirror3DViewProps) {
                     <button
                       key={category}
                       onClick={() => setSelectedCategory(category)}
-                      className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                        selectedCategory === category
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                      }`}
+                      className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${selectedCategory === category
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                        }`}
                     >
                       {category.charAt(0).toUpperCase() + category.slice(1)}
                     </button>
@@ -344,11 +339,10 @@ export function Mirror3DView({ onBack }: Mirror3DViewProps) {
                   {/* Calibration Toggle */}
                   <button
                     onClick={() => setShowCalibrationPanel(!showCalibrationPanel)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                      showCalibrationPanel
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                    }`}
+                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${showCalibrationPanel
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                      }`}
                   >
                     <Settings className="w-4 h-4" />
                   </button>
@@ -365,11 +359,10 @@ export function Mirror3DView({ onBack }: Mirror3DViewProps) {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => handleGarmentSelect(garment)}
-                        className={`flex-shrink-0 w-20 h-24 rounded-xl overflow-hidden relative transition-all ${
-                          isEquipped
-                            ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-black'
-                            : 'ring-1 ring-white/20 hover:ring-white/40'
-                        }`}
+                        className={`flex-shrink-0 w-20 h-24 rounded-xl overflow-hidden relative transition-all ${isEquipped
+                          ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-black'
+                          : 'ring-1 ring-white/20 hover:ring-white/40'
+                          }`}
                       >
                         {/* Thumbnail or placeholder */}
                         <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
