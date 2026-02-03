@@ -60,8 +60,8 @@ export default function AppLayout() {
       <header className="hidden md:flex sticky top-0 z-50 h-16 border-b border-white/5 bg-[#050505]/50 backdrop-blur-md">
         <div className="container max-w-container mx-auto px-6 flex items-center justify-between">
           <NavLink to="/" className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-green-500 rounded-sm"></div>
-            <span className="font-medium tracking-tight text-white">MirrorX</span>
+            <img src="/logo.png" alt="MirrorX" className="w-8 h-8 object-contain" />
+            <span className="font-medium tracking-tight text-white">Mirror<span className="text-emerald-500">X</span></span>
           </NavLink>
 
           <nav className="flex items-center gap-1">
@@ -125,8 +125,8 @@ export default function AppLayout() {
       <header className="md:hidden sticky top-0 z-50 h-14 border-b border-white/5 bg-[#050505]/50 backdrop-blur-md">
         <div className="px-4 h-full flex items-center justify-between">
           <NavLink to="/" className="flex items-center gap-2">
-            <div className="w-5 h-5 bg-green-500 rounded-sm"></div>
-            <span className="font-medium text-sm text-white">MirrorX</span>
+            <img src="/logo.png" alt="MirrorX" className="w-7 h-7 object-contain" />
+            <span className="font-medium text-sm text-white">Mirror<span className="text-emerald-500">X</span></span>
           </NavLink>
 
           <Button
