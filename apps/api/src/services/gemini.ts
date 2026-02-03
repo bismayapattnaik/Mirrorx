@@ -25,9 +25,13 @@ import {
 // Initialize Gemini client
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
-// Model Configuration - Gemini 3 Pro Image (Best quality)
+// Model Configuration - Using BEST Gemini models only
+// Image Generation: Gemini 3 Pro Image Preview (Nano Banana) - Best for photorealistic output
 const IMAGE_MODEL = 'gemini-3-pro-image-preview';
-const TEXT_MODEL = 'gemini-2.0-flash';
+// Text/Analysis: Gemini 3 Pro - Best reasoning and analysis capabilities
+const TEXT_MODEL = 'gemini-3-pro';
+// Alternative for complex reasoning tasks
+const THINKING_MODEL = 'gemini-3-pro-thinking';
 
 type Gender = 'male' | 'female';
 

@@ -15,8 +15,11 @@ import { GoogleGenAI } from '@google/genai';
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
-// Use Gemini Flash for fast analysis
-const ANALYSIS_MODEL = 'gemini-2.0-flash';
+// Use BEST Gemini models for maximum accuracy
+// Gemini 3 Pro for detailed face/body analysis - highest accuracy
+const ANALYSIS_MODEL = 'gemini-3-pro';
+// Gemini 3 Pro Thinking for complex reasoning tasks
+const THINKING_MODEL = 'gemini-3-pro-thinking';
 
 /**
  * Extracted face features for identity anchoring
