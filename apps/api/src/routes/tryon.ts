@@ -330,14 +330,23 @@ router.post(
         }
       });
 
-      // For FULL_FIT mode, get style recommendations and buy links
+      // For FULL_FIT mode, get comprehensive style recommendations and buy links
       let outfitSuggestions = null;
       if (mode === 'FULL_FIT' && productBase64) {
         try {
+          console.log('[TryOn] FULL_FIT mode - generating comprehensive outfit recommendations...');
           const styleRecs = await getStyleRecommendations(productBase64);
 
           // Generate buy links for each complementary item
-          const buyLinks = styleRecs.complementaryItems.map(item => ({
+          // Sort by priority: essential → recommended → optional
+          const priorityOrder = { essential: 0, recommended: 1, optional: 2 };
+          const sortedItems = [...styleRecs.complementaryItems].sort((a, b) => {
+            const aPriority = priorityOrder[(a as any).priority || 'optional'] || 2;
+            const bPriority = priorityOrder[(b as any).priority || 'optional'] || 2;
+            return aPriority - bPriority;
+          });
+
+          const buyLinks = sortedItems.map(item => ({
             ...item,
             stores: INDIAN_STORES.map(store => ({
               name: store.name,
@@ -347,9 +356,16 @@ router.post(
 
           outfitSuggestions = {
             analysis: styleRecs.analysis,
-            stylingTips: styleRecs.stylingTips || (styleRecs as any).suggestions || [],
+            outfitStyle: (styleRecs as any).outfitStyle || 'casual',
+            occasions: (styleRecs as any).occasions || [],
+            stylingTips: styleRecs.stylingTips || [],
             complementaryItems: buyLinks,
+            essentialItems: buyLinks.filter((item: any) => item.priority === 'essential'),
+            recommendedItems: buyLinks.filter((item: any) => item.priority === 'recommended'),
+            optionalItems: buyLinks.filter((item: any) => item.priority === 'optional'),
           };
+
+          console.log(`[TryOn] FULL_FIT recommendations generated: ${buyLinks.length} items`);
         } catch (recError) {
           console.error('Style recommendations failed:', recError);
           // Continue without recommendations
