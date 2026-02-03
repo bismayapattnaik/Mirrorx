@@ -155,6 +155,121 @@ export interface BodyEstimation {
   torsoWidthRatio: number;
   /** Estimated hip width ratio */
   hipWidthRatio: number;
+  /** Estimated arm length ratio */
+  armLengthRatio: number;
+  /** Estimated leg length ratio */
+  legLengthRatio: number;
+  /** Estimated torso length (neck to hips) ratio */
+  torsoLengthRatio: number;
   /** Confidence score for the estimation */
   confidence: number;
+}
+
+/**
+ * Detailed body measurements in centimeters
+ * Used for fit prediction
+ */
+export interface BodyMeasurements {
+  /** Total height in cm */
+  heightCm: number;
+  /** Shoulder width in cm */
+  shoulderWidthCm: number;
+  /** Chest circumference in cm (estimated) */
+  chestCircumferenceCm: number;
+  /** Waist circumference in cm (estimated) */
+  waistCircumferenceCm: number;
+  /** Hip circumference in cm (estimated) */
+  hipCircumferenceCm: number;
+  /** Arm length (shoulder to wrist) in cm */
+  armLengthCm: number;
+  /** Inseam (hip to ankle) in cm */
+  inseamCm: number;
+  /** Torso length (neck to hips) in cm */
+  torsoLengthCm: number;
+  /** Neck circumference in cm (estimated) */
+  neckCircumferenceCm: number;
+  /** Confidence scores for each measurement */
+  confidences: {
+    height: number;
+    shoulderWidth: number;
+    chestCircumference: number;
+    waistCircumference: number;
+    hipCircumference: number;
+    armLength: number;
+    inseam: number;
+    torsoLength: number;
+    neckCircumference: number;
+  };
+  /** Overall measurement confidence */
+  overallConfidence: number;
+}
+
+/**
+ * Fit prediction result
+ */
+export interface FitPrediction {
+  /** Recommended size */
+  recommendedSize: string;
+  /** Confidence in the recommendation */
+  confidence: number;
+  /** Fit quality per body area */
+  fitDetails: {
+    shoulders: FitQuality;
+    chest: FitQuality;
+    waist: FitQuality;
+    hips: FitQuality;
+    length: FitQuality;
+    sleeves?: FitQuality;
+    inseam?: FitQuality;
+  };
+  /** Alternative sizes to consider */
+  alternatives: Array<{
+    size: string;
+    fitScore: number;
+    notes: string;
+  }>;
+}
+
+/**
+ * Fit quality assessment
+ */
+export interface FitQuality {
+  /** Fit status: perfect, slightly_tight, tight, slightly_loose, loose */
+  status: 'perfect' | 'slightly_tight' | 'tight' | 'slightly_loose' | 'loose';
+  /** Difference in cm (positive = too large, negative = too small) */
+  differenceCm: number;
+  /** Fit score (0-100, 100 = perfect) */
+  score: number;
+}
+
+/**
+ * Garment size chart for fit prediction
+ */
+export interface GarmentSizeChart {
+  /** Garment ID */
+  garmentId: string;
+  /** Garment category (tops, bottoms, dresses, etc.) */
+  category: 'tops' | 'bottoms' | 'dresses' | 'outerwear';
+  /** Size measurements */
+  sizes: {
+    [size: string]: {
+      /** Chest/bust range in cm */
+      chestMin?: number;
+      chestMax?: number;
+      /** Waist range in cm */
+      waistMin?: number;
+      waistMax?: number;
+      /** Hip range in cm */
+      hipMin?: number;
+      hipMax?: number;
+      /** Shoulder width in cm */
+      shoulderWidthCm?: number;
+      /** Garment length in cm */
+      lengthCm?: number;
+      /** Sleeve length in cm */
+      sleeveLengthCm?: number;
+      /** Inseam for pants in cm */
+      inseamCm?: number;
+    };
+  };
 }
