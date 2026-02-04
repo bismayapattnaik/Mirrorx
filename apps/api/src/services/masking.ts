@@ -111,6 +111,88 @@ export class ImageMasker {
     this.options = { ...DEFAULT_MASK_OPTIONS, ...options };
   }
 
+  private async buildFallbackDetection(
+    imageBase64: string
+  ): Promise<{
+    bbox: FaceBoundingBox;
+    landmarks: FaceLandmarks;
+    skinTone: { rgb: { r: number; g: number; b: number }; hex: string };
+  } | null> {
+    try {
+      const cleanImage = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(cleanImage, 'base64');
+      const metadata = await sharp(buffer).metadata();
+
+      if (!metadata.width || !metadata.height) {
+        return null;
+      }
+
+      const isPortrait = metadata.height >= metadata.width;
+      const faceWidth = isPortrait ? 0.5 : 0.4;
+      const faceHeight = isPortrait ? 0.45 : 0.5;
+      const faceX = 0.5 - faceWidth / 2;
+      const faceY = isPortrait ? 0.08 : 0.1;
+
+      const bbox: FaceBoundingBox = {
+        x: faceX,
+        y: faceY,
+        width: faceWidth,
+        height: faceHeight,
+        confidence: 0.3,
+      };
+
+      const landmarks: FaceLandmarks = {
+        leftEye: { x: faceX + faceWidth * 0.32, y: faceY + faceHeight * 0.35 },
+        rightEye: { x: faceX + faceWidth * 0.68, y: faceY + faceHeight * 0.35 },
+        nose: { x: faceX + faceWidth * 0.5, y: faceY + faceHeight * 0.55 },
+        leftMouth: { x: faceX + faceWidth * 0.38, y: faceY + faceHeight * 0.72 },
+        rightMouth: { x: faceX + faceWidth * 0.62, y: faceY + faceHeight * 0.72 },
+        chin: { x: faceX + faceWidth * 0.5, y: faceY + faceHeight * 0.92 },
+        leftEar: { x: faceX + faceWidth * 0.18, y: faceY + faceHeight * 0.45 },
+        rightEar: { x: faceX + faceWidth * 0.82, y: faceY + faceHeight * 0.45 },
+        foreheadTop: { x: faceX + faceWidth * 0.5, y: faceY + faceHeight * 0.08 },
+      };
+
+      let skinTone = { r: 180, g: 140, b: 120 };
+
+      try {
+        const sampleBuffer = await sharp(buffer)
+          .extract({
+            left: Math.round(faceX * metadata.width),
+            top: Math.round(faceY * metadata.height),
+            width: Math.round(faceWidth * metadata.width),
+            height: Math.round(faceHeight * metadata.height),
+          })
+          .resize(1, 1)
+          .raw()
+          .toBuffer();
+
+        if (sampleBuffer.length >= 3) {
+          skinTone = {
+            r: sampleBuffer[0],
+            g: sampleBuffer[1],
+            b: sampleBuffer[2],
+          };
+        }
+      } catch (error) {
+        console.warn('[ImageMasker] Failed to sample skin tone for fallback:', error);
+      }
+
+      const skinToneHex = `#${[skinTone.r, skinTone.g, skinTone.b]
+        .map((value) => value.toString(16).padStart(2, '0'))
+        .join('')}`;
+
+      return {
+        bbox,
+        landmarks,
+        skinTone: { rgb: skinTone, hex: skinToneHex },
+      };
+    } catch (error) {
+      console.error('[ImageMasker] Fallback detection error:', error);
+      return null;
+    }
+  }
+
   /**
    * Analyze image and detect face region using Gemini
    */
@@ -414,7 +496,11 @@ Return ONLY the JSON object.`;
     console.log('[ImageMasker] Starting segmentation...');
 
     // Step 1: Detect face region
-    const detection = await this.detectFaceRegion(imageBase64);
+    let detection = await this.detectFaceRegion(imageBase64);
+    if (!detection) {
+      console.warn('[ImageMasker] Face detection failed, using fallback region');
+      detection = await this.buildFallbackDetection(imageBase64);
+    }
     if (!detection) {
       console.error('[ImageMasker] Face detection failed');
       return null;
