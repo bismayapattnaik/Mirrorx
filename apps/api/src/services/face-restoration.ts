@@ -17,8 +17,8 @@ import { GoogleGenAI } from '@google/genai';
 import sharp from 'sharp';
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash';
-const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.0-flash-exp-image-generation';
+const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-pro-preview-05-06';
+const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.0-flash-exp';
 
 /**
  * Face embedding data for identity matching

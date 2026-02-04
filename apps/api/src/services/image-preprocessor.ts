@@ -19,8 +19,8 @@ import sharp from 'sharp';
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 // Model configuration - uses environment variables for flexibility
-const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash';
-const THINKING_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash';
+const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-pro-preview-05-06';
+const THINKING_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-pro-preview-05-06';
 
 /**
  * Face embedding for identity preservation
