@@ -42,11 +42,18 @@ import {
 // Initialize Gemini client
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
-// Model Configuration
-const IMAGE_MODEL = 'gemini-3-pro-image-preview';
-const TEXT_MODEL = 'gemini-3-pro';
+// Model Configuration - uses environment variables for flexibility
+const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.0-flash-exp';
+const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash-exp';
 
 type Gender = 'male' | 'female';
+
+const SAFETY_SETTINGS = [
+  { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+];
 
 // Cache
 const profileCache = new Map<string, { profile: AppearanceProfile; timestamp: number }>();
@@ -221,14 +228,22 @@ Generate the inpainted try-on image now.`;
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: {
-        aspectRatio: '3:4',
-        imageSize: '2K',
-      },
+      safetySettings: SAFETY_SETTINGS,
     },
   });
 
   // Extract image from response
+  if (!response.candidates || response.candidates.length === 0) {
+    console.error(
+      '[Gemini] Generation Failed. Response dump:',
+      JSON.stringify(response, null, 2)
+    );
+    if (response.promptFeedback) {
+      console.error('[Gemini] Block Reason:', response.promptFeedback);
+    }
+    throw new Error('Model refused to generate image (Safety/Block)');
+  }
+
   if (response.candidates && response.candidates.length > 0) {
     const parts = response.candidates[0].content?.parts || [];
 
@@ -336,14 +351,22 @@ Generate the full outfit try-on image now.`;
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: {
-        aspectRatio: '3:4',
-        imageSize: '2K',
-      },
+      safetySettings: SAFETY_SETTINGS,
     },
   });
 
   // Extract image from response
+  if (!response.candidates || response.candidates.length === 0) {
+    console.error(
+      '[Gemini] Generation Failed. Response dump:',
+      JSON.stringify(response, null, 2)
+    );
+    if (response.promptFeedback) {
+      console.error('[Gemini] Block Reason:', response.promptFeedback);
+    }
+    throw new Error('Model refused to generate image (Safety/Block)');
+  }
+
   if (response.candidates && response.candidates.length > 0) {
     const parts = response.candidates[0].content?.parts || [];
 
@@ -420,10 +443,7 @@ Generate a clean, simple try-on image.`;
     ],
     config: {
       responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: {
-        aspectRatio: '3:4',
-        imageSize: '2K',
-      },
+      safetySettings: SAFETY_SETTINGS,
     },
   });
 

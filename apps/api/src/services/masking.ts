@@ -20,7 +20,7 @@ import sharp from 'sharp';
 import { GoogleGenAI } from '@google/genai';
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-const ANALYSIS_MODEL = 'gemini-3-pro';
+const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash-exp';
 
 /**
  * Face bounding box with landmarks
@@ -182,13 +182,26 @@ Return ONLY the JSON object.`;
             ],
           },
         ],
+        config: {
+          safetySettings: [
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+          ],
+        },
       });
 
-      const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      let text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      text = text.replace(/```json/g, '').replace(/```/g, '').trim();
       const jsonMatch = text.match(/\{[\s\S]*\}/);
 
       if (!jsonMatch) {
-        console.error('[ImageMasker] Failed to parse face detection response');
+        console.error(
+          '[ImageMasker] Failed to parse face detection response:',
+          text.substring(0, 100)
+        );
         return null;
       }
 

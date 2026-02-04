@@ -18,11 +18,9 @@ import sharp from 'sharp';
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
-// Use BEST Gemini models for maximum accuracy
-// Gemini 3 Pro for detailed face/body analysis - highest accuracy
-const ANALYSIS_MODEL = 'gemini-3-pro';
-// Gemini 3 Pro Thinking for complex reasoning tasks
-const THINKING_MODEL = 'gemini-3-pro-thinking';
+// Model configuration - uses environment variables for flexibility
+const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash-exp';
+const THINKING_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash-exp';
 
 /**
  * Face embedding for identity preservation
