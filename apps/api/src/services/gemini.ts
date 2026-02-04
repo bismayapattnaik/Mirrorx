@@ -48,11 +48,16 @@ const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash-exp';
 
 type Gender = 'male' | 'female';
 
+/**
+ * SAFETY SETTINGS - Disable all safety blocks for human image processing
+ * Required for virtual try-on to work with selfies/human images
+ */
 const SAFETY_SETTINGS: SafetySetting[] = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
   { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY, threshold: HarmBlockThreshold.BLOCK_NONE },
 ];
 
 // Cache
@@ -588,28 +593,28 @@ export async function generateTryOnImage(
         console.warn('[Gemini] Inpainting validation failed after retries');
       }
 
-      // Verify face is unchanged (should be since we used mask)
-      const identityGuard = new IdentityGuard({ minSimilarityThreshold: 0.90 });
-      const faceValidation = await identityGuard.calculateFaceSimilarity(
+      // HARD LOCK: ALWAYS apply face restoration in PART mode
+      // We do NOT trust the diffusion model to preserve pixels perfectly
+      // The original face must be physically stamped back onto the result
+      console.log('[Gemini] PART mode: Forcing mandatory face overlay for 100% identity preservation...');
+      processingSteps.push('Face overlay (mandatory)');
+
+      const postResult = await restoreIdentity(
+        selfieBase64,
+        resultImage,
+        segmentation,
+        { minSimilarityThreshold: 0.0 } // Force overwrite regardless of similarity
+      );
+      resultImage = postResult.imageBase64;
+
+      // Log final similarity for debugging
+      const identityGuard = new IdentityGuard({ minSimilarityThreshold: 0.0 });
+      const finalSimilarity = await identityGuard.calculateFaceSimilarity(
         selfieBase64,
         resultImage,
         segmentation
       );
-
-      console.log(`[Gemini] Face similarity after inpainting: ${(faceValidation * 100).toFixed(1)}%`);
-
-      // If face was somehow modified, apply overlay
-      if (faceValidation < 0.90) {
-        console.log('[Gemini] Applying face overlay as safety measure...');
-        processingSteps.push('Face overlay (safety)');
-
-        const postResult = await restoreIdentity(
-          selfieBase64,
-          resultImage,
-          segmentation
-        );
-        resultImage = postResult.imageBase64;
-      }
+      console.log(`[Gemini] Face similarity after forced overlay: ${(finalSimilarity * 100).toFixed(1)}%`);
 
     } else {
       // ─────────────────────────────────────────────────────────────────────
@@ -782,6 +787,9 @@ Return ONLY the JSON object.`;
           ],
         },
       ],
+      config: {
+        safetySettings: SAFETY_SETTINGS,
+      },
     });
 
     const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -887,6 +895,9 @@ Return ONLY the JSON object.`;
           ],
         },
       ],
+      config: {
+        safetySettings: SAFETY_SETTINGS,
+      },
     });
 
     const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';

@@ -17,12 +17,24 @@
  */
 
 import sharp from 'sharp';
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from '@google/genai';
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold, type SafetySetting } from '@google/genai';
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash-exp';
 // Fallback models to try if primary model fails
 const FALLBACK_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+
+/**
+ * SAFETY SETTINGS - Disable all safety blocks for human image processing
+ * Required for virtual try-on to work with selfies/human images
+ */
+const SAFETY_SETTINGS: SafetySetting[] = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY, threshold: HarmBlockThreshold.BLOCK_NONE },
+];
 
 /**
  * Face bounding box with landmarks
@@ -195,12 +207,7 @@ Return ONLY the JSON object.`;
           },
         ],
         config: {
-          safetySettings: [
-            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          ],
+          safetySettings: SAFETY_SETTINGS,
         },
       });
 
