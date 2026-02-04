@@ -17,24 +17,25 @@
  */
 
 import sharp from 'sharp';
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold, type SafetySetting } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash-exp';
-// Fallback models to try if primary model fails
-const FALLBACK_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+
+// Use gemini-1.5-flash for face detection - faster and more permissive for JSON tasks
+const FACE_DETECTION_MODEL = 'gemini-1.5-flash';
 
 /**
  * SAFETY SETTINGS - Disable all safety blocks for human image processing
  * Required for virtual try-on to work with selfies/human images
+ * Using 'as any' to allow string-based values that the API accepts
  */
-const SAFETY_SETTINGS: SafetySetting[] = [
-  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-  { category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY, threshold: HarmBlockThreshold.BLOCK_NONE },
-];
+const SAFETY_SETTINGS = [
+  { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' },
+] as any;
 
 /**
  * Face bounding box with landmarks
@@ -127,15 +128,15 @@ export class ImageMasker {
 
   /**
    * Analyze image and detect face region using Gemini
-   * Returns face detection result or throws specific errors
-   * Includes fallback to default coordinates when API fails
+   * Returns face detection result or uses hardcoded fallback on failure
+   * NEVER throws - always returns valid detection or default mask
    */
-  async detectFaceRegion(imageBase64: string, retryCount: number = 0, modelIndex: number = 0): Promise<{
+  async detectFaceRegion(imageBase64: string, retryCount: number = 0): Promise<{
     bbox: FaceBoundingBox;
     landmarks: FaceLandmarks;
     skinTone: { rgb: { r: number; g: number; b: number }; hex: string };
-  } | null> {
-    const MAX_RETRIES = 3; // Increased from 2
+  }> {
+    const MAX_RETRIES = 2;
 
     try {
       const cleanImage = imageBase64.replace(/^data:image\/\w+;base64,/, '');
@@ -184,14 +185,10 @@ CRITICAL: Be VERY precise with the bounding box. It should include:
 
 Return ONLY the JSON object.`;
 
-      // Select model - use primary model first, then fallbacks
-      const modelsToTry = [ANALYSIS_MODEL, ...FALLBACK_MODELS];
-      const currentModel = modelsToTry[modelIndex] || ANALYSIS_MODEL;
-
-      console.log(`[ImageMasker] Calling Gemini for face detection (attempt ${retryCount + 1}/${MAX_RETRIES + 1}, model: ${currentModel})...`);
+      console.log(`[ImageMasker] Calling Gemini for face detection (attempt ${retryCount + 1}/${MAX_RETRIES + 1}, model: ${FACE_DETECTION_MODEL})...`);
 
       const response = await client.models.generateContent({
-        model: currentModel,
+        model: FACE_DETECTION_MODEL,
         contents: [
           {
             role: 'user',
@@ -211,121 +208,88 @@ Return ONLY the JSON object.`;
         },
       });
 
-      // Check if response was blocked by safety filters
+      // Check if response was blocked - use fallback instead of throwing
       if (response.promptFeedback?.blockReason) {
         const blockReason = response.promptFeedback.blockReason;
-        console.error('[ImageMasker] Request blocked by safety filters:', blockReason);
-        throw new Error(`Image blocked by safety filters: ${blockReason}`);
+        console.warn('[ImageMasker] Request blocked by safety filters:', blockReason);
+        console.log('[ImageMasker] Using hardcoded default mask as fallback...');
+        return this.getHardcodedDefaultMask(imageBase64);
       }
 
       // Check if we have any candidates
       if (!response.candidates || response.candidates.length === 0) {
-        console.error('[ImageMasker] No candidates in response:', JSON.stringify(response, null, 2));
-
-        // Try next model if available
-        const modelsToTry = [ANALYSIS_MODEL, ...FALLBACK_MODELS];
-        if (modelIndex < modelsToTry.length - 1) {
-          console.log(`[ImageMasker] Trying fallback model: ${modelsToTry[modelIndex + 1]}...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return this.detectFaceRegion(imageBase64, 0, modelIndex + 1);
-        }
+        console.warn('[ImageMasker] No candidates in response');
 
         // Retry on empty response (could be transient API issue)
         if (retryCount < MAX_RETRIES) {
           console.log(`[ImageMasker] Retrying face detection (attempt ${retryCount + 2}/${MAX_RETRIES + 1})...`);
-          await new Promise(resolve => setTimeout(resolve, 1500 * (retryCount + 1))); // Exponential backoff
-          return this.detectFaceRegion(imageBase64, retryCount + 1, modelIndex);
+          await new Promise(resolve => setTimeout(resolve, 1500 * (retryCount + 1)));
+          return this.detectFaceRegion(imageBase64, retryCount + 1);
         }
 
-        // Use fallback face detection as last resort
-        console.log('[ImageMasker] All API attempts failed, using fallback face detection...');
-        return this.getFallbackFaceDetection(imageBase64);
+        // Use hardcoded default mask as fallback
+        console.log('[ImageMasker] All API attempts failed, using hardcoded default mask...');
+        return this.getHardcodedDefaultMask(imageBase64);
       }
 
       // Check for finish reason that might indicate an issue
       const finishReason = response.candidates[0].finishReason;
-      if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
-        console.error('[ImageMasker] Unexpected finish reason:', finishReason);
-        if (finishReason === 'SAFETY') {
-          throw new Error('Image was flagged by content safety filters');
-        }
+      if (finishReason === 'SAFETY') {
+        console.warn('[ImageMasker] Response flagged by safety, using fallback...');
+        return this.getHardcodedDefaultMask(imageBase64);
       }
 
       let text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
       if (!text) {
-        console.error('[ImageMasker] Empty text response from Gemini');
+        console.warn('[ImageMasker] Empty text response from Gemini');
 
-        // Try next model if available
-        const modelsToTry = [ANALYSIS_MODEL, ...FALLBACK_MODELS];
-        if (modelIndex < modelsToTry.length - 1) {
-          console.log(`[ImageMasker] Trying fallback model: ${modelsToTry[modelIndex + 1]}...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return this.detectFaceRegion(imageBase64, 0, modelIndex + 1);
-        }
-
-        // Retry on empty text (could be transient)
         if (retryCount < MAX_RETRIES) {
           console.log(`[ImageMasker] Retrying due to empty response...`);
           await new Promise(resolve => setTimeout(resolve, 1500 * (retryCount + 1)));
-          return this.detectFaceRegion(imageBase64, retryCount + 1, modelIndex);
+          return this.detectFaceRegion(imageBase64, retryCount + 1);
         }
 
-        // Use fallback face detection as last resort
-        console.log('[ImageMasker] All API attempts failed, using fallback face detection...');
-        return this.getFallbackFaceDetection(imageBase64);
+        console.log('[ImageMasker] Using hardcoded default mask...');
+        return this.getHardcodedDefaultMask(imageBase64);
       }
 
       console.log('[ImageMasker] Raw response text:', text.substring(0, 200));
 
-      text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      // Strip markdown code blocks before parsing
+      text = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
       const jsonMatch = text.match(/\{[\s\S]*\}/);
 
       if (!jsonMatch) {
-        console.error(
-          '[ImageMasker] Failed to parse face detection response:',
-          text.substring(0, 200)
-        );
+        console.warn('[ImageMasker] Failed to parse face detection response');
 
-        // Try next model if available
-        const modelsToTry = [ANALYSIS_MODEL, ...FALLBACK_MODELS];
-        if (modelIndex < modelsToTry.length - 1) {
-          console.log(`[ImageMasker] Trying fallback model: ${modelsToTry[modelIndex + 1]}...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return this.detectFaceRegion(imageBase64, 0, modelIndex + 1);
-        }
-
-        // Retry on parse failure
         if (retryCount < MAX_RETRIES) {
           console.log(`[ImageMasker] Retrying due to parse failure...`);
           await new Promise(resolve => setTimeout(resolve, 1500 * (retryCount + 1)));
-          return this.detectFaceRegion(imageBase64, retryCount + 1, modelIndex);
+          return this.detectFaceRegion(imageBase64, retryCount + 1);
         }
 
-        // Use fallback face detection as last resort
-        console.log('[ImageMasker] All API attempts failed, using fallback face detection...');
-        return this.getFallbackFaceDetection(imageBase64);
+        console.log('[ImageMasker] Using hardcoded default mask...');
+        return this.getHardcodedDefaultMask(imageBase64);
       }
 
       let data;
       try {
         data = JSON.parse(jsonMatch[0]);
       } catch (parseError) {
-        console.error('[ImageMasker] JSON parse error:', parseError);
-        console.error('[ImageMasker] Attempted to parse:', jsonMatch[0].substring(0, 200));
-        throw new Error('Invalid JSON in face detection response');
+        console.warn('[ImageMasker] JSON parse error, using fallback');
+        return this.getHardcodedDefaultMask(imageBase64);
       }
 
       if (!data.faceDetected) {
-        console.log('[ImageMasker] Gemini reports no face detected in image');
-        // This is a genuine "no face" scenario, return null (not an error)
-        return null;
+        console.log('[ImageMasker] Gemini reports no face detected, using default mask');
+        return this.getHardcodedDefaultMask(imageBase64);
       }
 
       // Validate the response has required fields
       if (!data.faceBoundingBox || typeof data.faceBoundingBox.x !== 'number') {
-        console.error('[ImageMasker] Invalid face bounding box data:', data.faceBoundingBox);
-        throw new Error('Invalid face detection response: missing bounding box');
+        console.warn('[ImageMasker] Invalid face bounding box data, using fallback');
+        return this.getHardcodedDefaultMask(imageBase64);
       }
 
       console.log('[ImageMasker] Face detected successfully:', {
@@ -341,7 +305,7 @@ Return ONLY the JSON object.`;
           height: data.faceBoundingBox.height,
           confidence: data.faceBoundingBox.confidence || 0.9,
         },
-        landmarks: data.landmarks,
+        landmarks: data.landmarks || this.getDefaultLandmarks(data.faceBoundingBox),
         skinTone: {
           rgb: {
             r: data.skinTone?.r || 180,
@@ -355,174 +319,70 @@ Return ONLY the JSON object.`;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('[ImageMasker] Face detection error:', errorMessage);
 
-      // Check for specific error types that should not be retried
-      if (errorMessage.includes('blocked') || errorMessage.includes('safety')) {
-        throw error; // Re-throw safety-related errors
-      }
-
-      // Try next model if available
-      const modelsToTry = [ANALYSIS_MODEL, ...FALLBACK_MODELS];
-      if (modelIndex < modelsToTry.length - 1 && !errorMessage.includes('blocked') && !errorMessage.includes('safety')) {
-        console.log(`[ImageMasker] Trying fallback model after error: ${modelsToTry[modelIndex + 1]}...`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return this.detectFaceRegion(imageBase64, 0, modelIndex + 1);
-      }
-
-      // Check for API/network errors that might be transient
-      if (retryCount < MAX_RETRIES && (
-        errorMessage.includes('ECONNRESET') ||
-        errorMessage.includes('ETIMEDOUT') ||
-        errorMessage.includes('fetch') ||
-        errorMessage.includes('network') ||
-        errorMessage.includes('500') ||
-        errorMessage.includes('503') ||
-        errorMessage.includes('rate') ||
-        errorMessage.includes('empty response') ||
-        errorMessage.includes('API')
-      )) {
-        console.log(`[ImageMasker] Retrying after network/API error...`);
+      // Retry on transient errors
+      if (retryCount < MAX_RETRIES) {
+        console.log(`[ImageMasker] Retrying after error...`);
         await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1)));
-        return this.detectFaceRegion(imageBase64, retryCount + 1, modelIndex);
+        return this.detectFaceRegion(imageBase64, retryCount + 1);
       }
 
-      // Use fallback face detection as last resort for non-safety errors
-      if (!errorMessage.includes('blocked') && !errorMessage.includes('safety')) {
-        console.log('[ImageMasker] All API attempts failed, using fallback face detection...');
-        return this.getFallbackFaceDetection(imageBase64);
-      }
-
-      // If error already has a specific message, re-throw it
-      if (error instanceof Error && !errorMessage.includes('Unknown')) {
-        throw error;
-      }
-
-      throw new Error(`Face detection failed: ${errorMessage}`);
+      // ALWAYS return valid detection - never throw
+      console.log('[ImageMasker] All attempts failed, using hardcoded default mask...');
+      return this.getHardcodedDefaultMask(imageBase64);
     }
   }
 
   /**
-   * Fallback face detection using image analysis and default coordinates
-   * Used when Gemini API is unavailable
-   * Returns typical selfie face coordinates (face in upper-center portion)
+   * Get default landmarks based on bounding box
    */
-  private async getFallbackFaceDetection(imageBase64: string): Promise<{
+  private getDefaultLandmarks(bbox: { x: number; y: number; width: number; height: number }): FaceLandmarks {
+    const centerX = bbox.x + bbox.width / 2;
+    const centerY = bbox.y + bbox.height / 2;
+    return {
+      leftEye: { x: centerX - bbox.width * 0.15, y: centerY - bbox.height * 0.1 },
+      rightEye: { x: centerX + bbox.width * 0.15, y: centerY - bbox.height * 0.1 },
+      nose: { x: centerX, y: centerY },
+      leftMouth: { x: centerX - bbox.width * 0.1, y: centerY + bbox.height * 0.15 },
+      rightMouth: { x: centerX + bbox.width * 0.1, y: centerY + bbox.height * 0.15 },
+      chin: { x: centerX, y: bbox.y + bbox.height },
+      leftEar: { x: bbox.x, y: centerY },
+      rightEar: { x: bbox.x + bbox.width, y: centerY },
+      foreheadTop: { x: centerX, y: bbox.y },
+    };
+  }
+
+  /**
+   * HARDCODED DEFAULT MASK: Top 20% black (protected), Bottom 80% white (editable)
+   * This is the ultimate fallback that NEVER fails - ensures pipeline never throws
+   */
+  private async getHardcodedDefaultMask(imageBase64: string): Promise<{
     bbox: FaceBoundingBox;
     landmarks: FaceLandmarks;
     skinTone: { rgb: { r: number; g: number; b: number }; hex: string };
   }> {
-    console.log('[ImageMasker] Using fallback face detection with default coordinates...');
+    console.log('[ImageMasker] Generating hardcoded default mask (top 20% protected)...');
 
-    try {
-      const cleanImage = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-      const buffer = Buffer.from(cleanImage, 'base64');
-      const metadata = await sharp(buffer).metadata();
+    // Default mask: face region = top 20% of image
+    // x: 0.15, y: 0.0, width: 0.7, height: 0.25
+    const bbox: FaceBoundingBox = {
+      x: 0.15,       // Centered horizontally with margins
+      y: 0.0,        // Start from top
+      width: 0.7,    // Cover most of horizontal space
+      height: 0.25,  // Top 25% (with some buffer for hair)
+      confidence: 0.5,
+    };
 
-      const width = metadata.width || 1024;
-      const height = metadata.height || 1024;
+    const landmarks = this.getDefaultLandmarks(bbox);
 
-      // For typical selfie images, the face is usually:
-      // - Horizontally centered (x: 0.25, width: 0.5)
-      // - In the upper portion (y: 0.05-0.15, height: 0.35-0.45)
-      // Adjust based on aspect ratio
-      const aspectRatio = width / height;
+    // Default skin tone (medium tone)
+    const skinTone = {
+      rgb: { r: 180, g: 140, b: 120 },
+      hex: '#B48C78',
+    };
 
-      let faceX = 0.25;
-      let faceY = 0.05;
-      let faceWidth = 0.5;
-      let faceHeight = 0.4;
+    console.log('[ImageMasker] Hardcoded default mask generated:', { bbox });
 
-      // Adjust for portrait vs landscape images
-      if (aspectRatio < 0.75) {
-        // Tall portrait - face takes more horizontal space
-        faceX = 0.15;
-        faceWidth = 0.7;
-        faceHeight = 0.35;
-      } else if (aspectRatio > 1.3) {
-        // Landscape - face is smaller and more centered
-        faceX = 0.35;
-        faceWidth = 0.3;
-        faceY = 0.1;
-        faceHeight = 0.5;
-      }
-
-      // Try to analyze dominant colors for skin tone
-      let skinTone = { r: 180, g: 140, b: 120 };
-      try {
-        const stats = await sharp(buffer)
-          .extract({
-            left: Math.floor(width * faceX),
-            top: Math.floor(height * faceY),
-            width: Math.floor(width * faceWidth * 0.5),
-            height: Math.floor(height * faceHeight * 0.5),
-          })
-          .stats();
-
-        // Use the dominant channel values as an approximation
-        if (stats.channels && stats.channels.length >= 3) {
-          skinTone = {
-            r: Math.round(stats.channels[0].mean),
-            g: Math.round(stats.channels[1].mean),
-            b: Math.round(stats.channels[2].mean),
-          };
-        }
-      } catch {
-        // Use default skin tone if extraction fails
-      }
-
-      const centerX = faceX + faceWidth / 2;
-      const centerY = faceY + faceHeight / 2;
-
-      console.log('[ImageMasker] Fallback face detection complete:', {
-        bbox: { x: faceX, y: faceY, width: faceWidth, height: faceHeight },
-        skinTone,
-      });
-
-      return {
-        bbox: {
-          x: faceX,
-          y: faceY,
-          width: faceWidth,
-          height: faceHeight,
-          confidence: 0.7, // Lower confidence for fallback
-        },
-        landmarks: {
-          leftEye: { x: centerX - 0.08, y: centerY - 0.08 },
-          rightEye: { x: centerX + 0.08, y: centerY - 0.08 },
-          nose: { x: centerX, y: centerY },
-          leftMouth: { x: centerX - 0.05, y: centerY + 0.1 },
-          rightMouth: { x: centerX + 0.05, y: centerY + 0.1 },
-          chin: { x: centerX, y: centerY + 0.18 },
-          leftEar: { x: faceX, y: centerY - 0.05 },
-          rightEar: { x: faceX + faceWidth, y: centerY - 0.05 },
-          foreheadTop: { x: centerX, y: faceY },
-        },
-        skinTone: {
-          rgb: skinTone,
-          hex: `#${skinTone.r.toString(16).padStart(2, '0')}${skinTone.g.toString(16).padStart(2, '0')}${skinTone.b.toString(16).padStart(2, '0')}`,
-        },
-      };
-    } catch (error) {
-      console.error('[ImageMasker] Fallback face detection error:', error);
-      // Return absolute minimum defaults
-      return {
-        bbox: { x: 0.25, y: 0.05, width: 0.5, height: 0.4, confidence: 0.5 },
-        landmarks: {
-          leftEye: { x: 0.4, y: 0.2 },
-          rightEye: { x: 0.6, y: 0.2 },
-          nose: { x: 0.5, y: 0.28 },
-          leftMouth: { x: 0.45, y: 0.35 },
-          rightMouth: { x: 0.55, y: 0.35 },
-          chin: { x: 0.5, y: 0.43 },
-          leftEar: { x: 0.25, y: 0.2 },
-          rightEar: { x: 0.75, y: 0.2 },
-          foreheadTop: { x: 0.5, y: 0.05 },
-        },
-        skinTone: {
-          rgb: { r: 180, g: 140, b: 120 },
-          hex: '#B48C78',
-        },
-      };
-    }
+    return { bbox, landmarks, skinTone };
   }
 
   /**
@@ -698,20 +558,15 @@ Return ONLY the JSON object.`;
 
   /**
    * Main segmentation method - returns all mask data needed for try-on
-   * Throws errors for API failures, returns null only for genuine "no face" cases
+   * NEVER returns null - always provides valid segmentation (uses fallback if needed)
    */
-  async segment(imageBase64: string): Promise<SegmentationResult | null> {
+  async segment(imageBase64: string): Promise<SegmentationResult> {
     console.log('[ImageMasker] Starting segmentation...');
 
-    // Step 1: Detect face region
-    // This will throw errors for API failures, return null only for genuine "no face"
+    // Step 1: Detect face region (NEVER fails - uses fallback if needed)
     const detection = await this.detectFaceRegion(imageBase64);
-    if (!detection) {
-      console.log('[ImageMasker] No face detected in image (genuine result, not an error)');
-      return null;
-    }
 
-    console.log('[ImageMasker] Face detected:', {
+    console.log('[ImageMasker] Face detection result:', {
       bbox: detection.bbox,
       confidence: detection.bbox.confidence,
     });
@@ -856,9 +711,9 @@ export function getImageMasker(options?: MaskOptions): ImageMasker {
 }
 
 /**
- * Quick segmentation helper
+ * Quick segmentation helper - NEVER returns null
  */
-export async function segmentImage(imageBase64: string): Promise<SegmentationResult | null> {
+export async function segmentImage(imageBase64: string): Promise<SegmentationResult> {
   const masker = getImageMasker();
   return masker.segment(imageBase64);
 }
