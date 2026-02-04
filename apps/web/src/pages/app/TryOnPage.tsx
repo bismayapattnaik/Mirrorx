@@ -57,6 +57,38 @@ export default function TryOnPage() {
   const [feedbackNotes, setFeedbackNotes] = useState('');
   const [isSharing, setIsSharing] = useState(false);
 
+  const getTryOnErrorMessage = (message?: string) => {
+    if (!message) {
+      return 'Please try again.';
+    }
+
+    const normalizedMessage = message.toLowerCase();
+
+    // Handle specific error cases with user-friendly messages
+    if (normalizedMessage.includes('no face detected')) {
+      return 'Please upload a well-lit photo where your face is clearly visible and large in the frame.';
+    }
+
+    if (normalizedMessage.includes('content restrictions') || normalizedMessage.includes('safety')) {
+      return 'This image could not be processed. Please try a different photo.';
+    }
+
+    if (normalizedMessage.includes('temporarily unavailable') || normalizedMessage.includes('service')) {
+      return 'The service is temporarily busy. Please try again in a moment.';
+    }
+
+    if (normalizedMessage.includes('clearer photo') || normalizedMessage.includes('analyze')) {
+      return 'Could not analyze the image. Please try a clearer photo with good lighting.';
+    }
+
+    // For other errors, show the actual message if it's user-friendly, otherwise a generic one
+    if (message.length < 100 && !normalizedMessage.includes('error')) {
+      return message;
+    }
+
+    return 'Something went wrong. Please try again.';
+  };
+
   // Fetch credits on mount
   useState(() => {
     creditsApi.getBalance().then((data) => {
@@ -204,10 +236,11 @@ export default function TryOnPage() {
         description: 'Your virtual try-on is ready.',
       });
     } catch (error: any) {
+      console.error('Try-on generation failed:', error);
       toast({
         variant: 'destructive',
         title: 'Generation failed',
-        description: error.message || 'Please try again.',
+        description: getTryOnErrorMessage(error?.message),
       });
     } finally {
       clearInterval(progressInterval);
