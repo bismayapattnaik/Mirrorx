@@ -43,8 +43,8 @@ import {
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 // Model Configuration - uses environment variables for flexibility
-const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image';
-const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-3-pro';
+const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.0-flash-exp';
+const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash-exp';
 
 type Gender = 'male' | 'female';
 
@@ -221,10 +221,6 @@ Generate the inpainted try-on image now.`;
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: {
-        aspectRatio: '3:4',
-        imageSize: '2K',
-      },
     },
   });
 
@@ -336,10 +332,6 @@ Generate the full outfit try-on image now.`;
     config: {
       systemInstruction: SYSTEM_INSTRUCTION,
       responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: {
-        aspectRatio: '3:4',
-        imageSize: '2K',
-      },
     },
   });
 
@@ -420,10 +412,6 @@ Generate a clean, simple try-on image.`;
     ],
     config: {
       responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: {
-        aspectRatio: '3:4',
-        imageSize: '2K',
-      },
     },
   });
 

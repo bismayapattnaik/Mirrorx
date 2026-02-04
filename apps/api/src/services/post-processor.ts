@@ -22,7 +22,7 @@ import { GoogleGenAI } from '@google/genai';
 import type { SegmentationResult } from './masking';
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-3-pro';
+const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash-exp';
 
 /**
  * Post-processing result

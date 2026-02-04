@@ -17,8 +17,8 @@ import { GoogleGenAI } from '@google/genai';
 import sharp from 'sharp';
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-3-pro';
-const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro-image';
+const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash-exp';
+const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.0-flash-exp';
 
 /**
  * Face embedding data for identity matching
@@ -368,10 +368,6 @@ The face MUST be 100% identical to IMAGE 1. This is non-negotiable.`;
       ],
       config: {
         responseModalities: ['TEXT', 'IMAGE'],
-        imageConfig: {
-          aspectRatio: '3:4',
-          imageSize: '2K',
-        },
       },
     });
 
