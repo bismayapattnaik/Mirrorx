@@ -5,7 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { query, withTransaction } from '../db/index.js';
 import { generateTryOnImage, getStyleRecommendations } from '../services/gemini.js';
-import { validateFaceIdentity } from '../services/face-restoration.js';
+import { validateFaceUnchanged, validateImageContent } from '../services/post-processor.js';
+import { segmentImage } from '../services/masking.js';
 import { DAILY_FREE_TRYONS } from '@mrrx/shared';
 import type { TryOnJob, TryOnJobStatus } from '@mrrx/shared';
 
@@ -395,13 +396,17 @@ router.post(
       };
 
       try {
-        const faceValidation = await validateFaceIdentity(selfieBase64, resultImage, 0.80);
-        facePreservationInfo = {
-          facePreserved: faceValidation.isValid,
-          faceSimilarity: faceValidation.similarityScore,
-          restorationApplied: true,
-        };
-        console.log(`[TryOn] Final face similarity: ${(faceValidation.similarityScore * 100).toFixed(1)}%`);
+        // Get segmentation for validation
+        const segmentation = await segmentImage(selfieBase64);
+        if (segmentation) {
+          const faceValidation = await validateFaceUnchanged(selfieBase64, resultImage, segmentation, 0.80);
+          facePreservationInfo = {
+            facePreserved: faceValidation.isValid,
+            faceSimilarity: faceValidation.similarity,
+            restorationApplied: true,
+          };
+          console.log(`[TryOn] Final face similarity: ${(faceValidation.similarity * 100).toFixed(1)}%`);
+        }
       } catch (validationError) {
         console.warn('[TryOn] Face validation failed, assuming success:', validationError);
       }
@@ -728,12 +733,15 @@ router.post(
       };
 
       try {
-        const faceValidation = await validateFaceIdentity(selfieBase64, resultImage, 0.80);
-        facePreservationInfo = {
-          facePreserved: faceValidation.isValid,
-          faceSimilarity: faceValidation.similarityScore,
-          restorationApplied: true,
-        };
+        const segmentation = await segmentImage(selfieBase64);
+        if (segmentation) {
+          const faceValidation = await validateFaceUnchanged(selfieBase64, resultImage, segmentation, 0.80);
+          facePreservationInfo = {
+            facePreserved: faceValidation.isValid,
+            faceSimilarity: faceValidation.similarity,
+            restorationApplied: true,
+          };
+        }
       } catch {
         // Ignore validation errors for quick try-on
       }
@@ -880,12 +888,15 @@ router.post(
       };
 
       try {
-        const faceValidation = await validateFaceIdentity(selfieBase64, resultImage, 0.80);
-        facePreservationInfo = {
-          facePreserved: faceValidation.isValid,
-          faceSimilarity: faceValidation.similarityScore,
-          restorationApplied: true,
-        };
+        const segmentation = await segmentImage(selfieBase64);
+        if (segmentation) {
+          const faceValidation = await validateFaceUnchanged(selfieBase64, resultImage, segmentation, 0.80);
+          facePreservationInfo = {
+            facePreserved: faceValidation.isValid,
+            faceSimilarity: faceValidation.similarity,
+            restorationApplied: true,
+          };
+        }
       } catch {
         // Ignore validation errors for demo
       }
