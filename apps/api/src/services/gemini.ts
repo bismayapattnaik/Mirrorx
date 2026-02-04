@@ -19,8 +19,17 @@ import {
   createAppearanceProfile,
   generateIdentityAnchorPrompt,
   generateBodySyncPrompt,
+  generatePartModePrompt,
+  generateFullFitModePrompt,
+  extractFaceIdentityData,
   type AppearanceProfile,
+  type FaceIdentityData,
 } from './image-preprocessor';
+import {
+  restoreFaceWithRetry,
+  validateFaceIdentity,
+  type FaceRestorationResult,
+} from './face-restoration';
 
 // Initialize Gemini client
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
@@ -37,7 +46,31 @@ type Gender = 'male' | 'female';
 
 // Cache for appearance profiles (avoid re-analyzing same image)
 const profileCache = new Map<string, { profile: AppearanceProfile; timestamp: number }>();
+const faceIdentityCache = new Map<string, { data: FaceIdentityData; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Generation options for try-on
+ */
+export interface TryOnGenerationOptions {
+  mode: TryOnMode;
+  gender: Gender;
+  enableFaceRestoration?: boolean;
+  minFaceSimilarity?: number;
+  maxRestorationAttempts?: number;
+  feedbackContext?: string;
+}
+
+/**
+ * Generation result with face restoration metadata
+ */
+export interface TryOnGenerationResult {
+  imageBase64: string;
+  faceRestored: boolean;
+  faceSimilarity: number;
+  processingSteps: string[];
+  totalTimeMs: number;
+}
 
 /**
  * Get or create appearance profile with caching
@@ -60,6 +93,28 @@ async function getAppearanceProfile(selfieBase64: string): Promise<AppearancePro
   }
 
   return profile;
+}
+
+/**
+ * Get or create face identity data with caching
+ */
+async function getFaceIdentityData(selfieBase64: string): Promise<FaceIdentityData | null> {
+  const cacheKey = selfieBase64.substring(0, 100);
+  const cached = faceIdentityCache.get(cacheKey);
+
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log('[Gemini] Using cached face identity data');
+    return cached.data;
+  }
+
+  console.log('[Gemini] Extracting face identity data...');
+  const data = await extractFaceIdentityData(selfieBase64);
+
+  if (data) {
+    faceIdentityCache.set(cacheKey, { data, timestamp: Date.now() });
+  }
+
+  return data;
 }
 
 /**
@@ -118,11 +173,13 @@ YOUR MISSION: Create PHOTOREALISTIC images where the person's identity is 100% p
 
 /**
  * Build the comprehensive try-on prompt with identity anchoring
+ * Enhanced with mode-specific prompts for PART and FULL_FIT modes
  */
 function buildAdvancedTryOnPrompt(
   gender: Gender,
   mode: TryOnMode,
-  profile: AppearanceProfile | null
+  profile: AppearanceProfile | null,
+  faceIdentity: FaceIdentityData | null
 ): string {
   const person = gender === 'female' ? 'woman' : 'man';
   const possessive = gender === 'female' ? 'her' : 'his';
@@ -157,11 +214,37 @@ Preserve from Image 1 EXACTLY:
 - Natural proportional relationship between face and body
 `;
 
+  // Enhanced face identity section for 100% preservation
+  const faceIdentitySection = faceIdentity ? `
+═══════════════════════════════════════════════════════════════════
+              CRITICAL: FACE IDENTITY LOCK (100% PRESERVATION)
+═══════════════════════════════════════════════════════════════════
+
+The face from Image 1 MUST be preserved with PIXEL-PERFECT accuracy.
+
+FACE REFERENCE DATA:
+- Skin tone: RGB(${faceIdentity.skinToneRGB.r}, ${faceIdentity.skinToneRGB.g}, ${faceIdentity.skinToneRGB.b}) / ${faceIdentity.skinToneHex}
+- Face angle: ${faceIdentity.faceAngle}° from frontal
+- Quality: ${faceIdentity.quality}
+
+ABSOLUTE REQUIREMENTS:
+1. The face MUST look like the SAME PERSON - not similar, IDENTICAL
+2. Do NOT alter facial structure in ANY way
+3. Do NOT change face weight/fullness
+4. Do NOT modify facial features (eyes, nose, lips, jaw)
+5. Skin tone MUST match EXACTLY everywhere
+
+This is the user's real face. It CANNOT be changed.
+` : '';
+
   // Mode-specific instructions
   let modeInstructions: string;
 
   if (mode === 'FULL_FIT') {
-    modeInstructions = `
+    // Use enhanced FULL_FIT prompt if profile available
+    modeInstructions = profile
+      ? generateFullFitModePrompt(profile)
+      : `
 ═══════════════════════════════════════════════════════════════════
                     FULL_FIT MODE: COMPLETE OUTFIT
 ═══════════════════════════════════════════════════════════════════
@@ -188,23 +271,41 @@ Create a COMPLETE, COORDINATED OUTFIT:
    - Show the complete outfit from head to at least mid-thigh
    - All clothing items should be clearly visible
    - Natural standing pose to showcase the outfit
+
+5. **FACE PRESERVATION (NON-NEGOTIABLE)**:
+   - The face MUST be 100% identical to Image 1
+   - This is the real person - face cannot be changed
 `;
   } else {
-    modeInstructions = `
+    // Use enhanced PART mode prompt if profile available
+    modeInstructions = profile
+      ? generatePartModePrompt(profile)
+      : `
 ═══════════════════════════════════════════════════════════════════
-                    PART MODE: SINGLE GARMENT
+                    PART MODE: HALF-BODY CLOTHES TRY-ON
 ═══════════════════════════════════════════════════════════════════
 
-Apply ONLY the specific garment from Image 2:
+Apply ONLY the specific garment from Image 2 on HALF BODY:
 
-1. **Single Item Focus**:
+1. **Framing**:
+   - Show UPPER HALF of body only (head to waist)
+   - Similar framing to original photo
+   - Natural pose
+
+2. **Single Item Focus**:
    - Apply only the clothing item shown in Image 2
-   - Maintain the person's existing other clothing
+   - Keep the person's face EXACTLY as in Image 1
    - Focus on how this one item fits and looks
 
-2. **Natural Integration**:
-   - The new item should blend naturally with existing clothes
-   - Realistic interaction between garments (tucking, layering)
+3. **Natural Integration**:
+   - The new item should fit naturally on their body
+   - Realistic wrinkles and draping
+   - Proper fit for their body type
+
+4. **FACE PRESERVATION (NON-NEGOTIABLE)**:
+   - The face MUST be 100% identical to Image 1
+   - Do NOT change face shape, features, or anything
+   - This is the user's real face
 `;
   }
 
@@ -218,6 +319,8 @@ the clothing from Image 2.
 
 The result MUST look like a REAL PHOTOGRAPH taken by a professional
 fashion photographer - not AI-generated.
+
+${faceIdentitySection}
 
 ${identitySection}
 
@@ -253,14 +356,25 @@ Apply clothing with PHOTOREALISTIC quality:
 • Subtle ambient fill to prevent deep shadows
 
 ═══════════════════════════════════════════════════════════════════
-                    FINAL QUALITY CHECK
+                    FACE VERIFICATION (MANDATORY)
 ═══════════════════════════════════════════════════════════════════
 
-Before generating, verify:
-✓ Face is IDENTICAL to Image 1 (shape, features, weight)
+BEFORE OUTPUTTING THE IMAGE, VERIFY:
+□ Face is PIXEL-PERFECT identical to Image 1
+□ Face shape has NOT changed (not thinner, not fatter)
+□ All facial features match EXACTLY
+□ Skin tone is EXACTLY the same (${faceIdentity?.skinToneHex || 'as in original'})
+□ Body build matches Image 1 EXACTLY
+
+If ANY of these are not met, regenerate with corrections.
+
+═══════════════════════════════════════════════════════════════════
+                    FINAL OUTPUT REQUIREMENTS
+═══════════════════════════════════════════════════════════════════
+
+✓ The face MUST be the same face as Image 1 (100% match)
 ✓ Body build matches Image 1 EXACTLY
 ✓ Skin tone is consistent everywhere
-✓ Face and body proportions are synchronized
 ✓ Clothing looks realistic and properly fitted
 ✓ Image looks like a real photograph
 
@@ -269,7 +383,14 @@ Generate the photorealistic try-on image now.`;
 
 /**
  * Generate virtual try-on image using Gemini 3 Pro Image
- * With advanced identity preservation and body synchronization
+ * With advanced identity preservation, body synchronization, and face restoration
+ *
+ * Enhanced pipeline:
+ * 1. Extract face identity and appearance profile
+ * 2. Generate try-on image with identity-anchored prompts
+ * 3. Validate face similarity
+ * 4. Apply face restoration if needed (mandatory for <92% similarity)
+ * 5. Return final image with face verification
  */
 export async function generateTryOnImage(
   selfieBase64: string,
@@ -278,6 +399,9 @@ export async function generateTryOnImage(
   gender: Gender = 'female',
   _feedbackContext?: string
 ): Promise<string> {
+  const startTime = Date.now();
+  const processingSteps: string[] = [];
+
   // Validate inputs
   if (!selfieBase64 || selfieBase64.length < 100) {
     throw new Error('Invalid selfie image provided');
@@ -298,9 +422,14 @@ export async function generateTryOnImage(
       throw new Error('Product image data is too small or invalid');
     }
 
-    // CRITICAL: Extract appearance profile for identity anchoring
-    console.log('[Gemini] Extracting appearance profile for identity anchoring...');
-    const profile = await getAppearanceProfile(selfieBase64);
+    // STEP 1: Extract appearance profile and face identity (in parallel)
+    console.log('[Gemini] Step 1: Extracting appearance profile and face identity...');
+    processingSteps.push('Extracting face identity');
+
+    const [profile, faceIdentity] = await Promise.all([
+      getAppearanceProfile(selfieBase64),
+      getFaceIdentityData(selfieBase64),
+    ]);
 
     if (profile) {
       console.log('[Gemini] Profile extracted:', {
@@ -312,10 +441,23 @@ export async function generateTryOnImage(
       console.log('[Gemini] Profile extraction failed, using fallback prompts');
     }
 
-    // Build the advanced prompt with identity anchoring
-    const prompt = buildAdvancedTryOnPrompt(gender, mode, profile);
+    if (faceIdentity) {
+      console.log('[Gemini] Face identity extracted:', {
+        skinTone: faceIdentity.skinToneHex,
+        quality: faceIdentity.quality,
+        angle: faceIdentity.faceAngle,
+      });
+    } else {
+      console.log('[Gemini] Face identity extraction failed, face restoration may be limited');
+    }
 
-    console.log(`[Gemini] Generating try-on with ${IMAGE_MODEL}...`);
+    // STEP 2: Build the advanced prompt with identity anchoring
+    processingSteps.push('Building identity-anchored prompt');
+    const prompt = buildAdvancedTryOnPrompt(gender, mode, profile, faceIdentity);
+
+    // STEP 3: Generate try-on image
+    processingSteps.push('Generating try-on image');
+    console.log(`[Gemini] Step 3: Generating try-on with ${IMAGE_MODEL}...`);
     console.log(`[Gemini] Mode: ${mode}, Gender: ${gender}`);
     console.log(`[Gemini] Selfie: ${cleanSelfie.length} chars, Product: ${cleanProduct.length} chars`);
 
@@ -438,7 +580,47 @@ Apply this clothing REALISTICALLY:
 
           console.log(`[Gemini] Try-on image generated successfully (${cleanData.length} chars)`);
 
-          return `data:${mimeType};base64,${cleanData}`;
+          const generatedImage = `data:${mimeType};base64,${cleanData}`;
+
+          // STEP 4: Validate face similarity and apply restoration if needed
+          processingSteps.push('Validating face identity');
+          console.log('[Gemini] Step 4: Validating face identity...');
+
+          const validation = await validateFaceIdentity(selfieBase64, generatedImage, 0.85);
+          console.log(`[Gemini] Face similarity: ${(validation.similarityScore * 100).toFixed(1)}%`);
+
+          // If face similarity is already high, return the generated image
+          if (validation.isValid && validation.similarityScore >= 0.90) {
+            console.log('[Gemini] Face identity preserved successfully, no restoration needed');
+            processingSteps.push('Face validation passed');
+            const totalTime = Date.now() - startTime;
+            console.log(`[Gemini] Total processing time: ${totalTime}ms`);
+            return generatedImage;
+          }
+
+          // STEP 5: Apply face restoration to ensure 100% identity preservation
+          processingSteps.push('Applying face restoration');
+          console.log('[Gemini] Step 5: Face similarity below threshold, applying restoration...');
+
+          const restorationResult = await restoreFaceWithRetry(
+            selfieBase64,
+            generatedImage,
+            0.88, // Target 88% minimum similarity
+            2     // Up to 2 restoration attempts
+          );
+
+          console.log(`[Gemini] Face restoration complete:`, {
+            restored: restorationResult.faceRestored,
+            similarity: `${(restorationResult.similarityScore * 100).toFixed(1)}%`,
+            method: restorationResult.method,
+            time: `${restorationResult.processingTimeMs}ms`,
+          });
+
+          const totalTime = Date.now() - startTime;
+          console.log(`[Gemini] Total processing time: ${totalTime}ms`);
+          console.log(`[Gemini] Processing steps: ${processingSteps.join(' → ')}`);
+
+          return restorationResult.restoredImageBase64;
         }
 
         // Check alternative format
@@ -448,7 +630,26 @@ Apply this clothing REALISTICALLY:
           const data = imageData.data;
           if (data && data.length > 100) {
             console.log(`[Gemini] Found image in alternative format (${data.length} chars)`);
-            return `data:${mimeType};base64,${data}`;
+
+            const generatedImage = `data:${mimeType};base64,${data}`;
+
+            // Apply face restoration for alternative format as well
+            processingSteps.push('Validating face identity (alt format)');
+            const validation = await validateFaceIdentity(selfieBase64, generatedImage, 0.85);
+
+            if (validation.isValid && validation.similarityScore >= 0.90) {
+              return generatedImage;
+            }
+
+            processingSteps.push('Applying face restoration (alt format)');
+            const restorationResult = await restoreFaceWithRetry(
+              selfieBase64,
+              generatedImage,
+              0.88,
+              2
+            );
+
+            return restorationResult.restoredImageBase64;
           }
         }
       }
