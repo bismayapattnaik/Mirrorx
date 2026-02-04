@@ -42,9 +42,9 @@ import {
 // Initialize Gemini client
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
-// Model Configuration
-const IMAGE_MODEL = 'gemini-3-pro-image-preview';
-const TEXT_MODEL = 'gemini-3-pro';
+// Model Configuration - uses environment variables for flexibility
+const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-2.0-flash-exp-image-generation';
+const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash';
 
 type Gender = 'male' | 'female';
 
