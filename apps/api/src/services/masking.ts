@@ -17,7 +17,7 @@
  */
 
 import sharp from 'sharp';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from '@google/genai';
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash-exp';
@@ -113,12 +113,15 @@ export class ImageMasker {
 
   /**
    * Analyze image and detect face region using Gemini
+   * Returns face detection result or throws specific errors
    */
-  async detectFaceRegion(imageBase64: string): Promise<{
+  async detectFaceRegion(imageBase64: string, retryCount: number = 0): Promise<{
     bbox: FaceBoundingBox;
     landmarks: FaceLandmarks;
     skinTone: { rgb: { r: number; g: number; b: number }; hex: string };
   } | null> {
+    const MAX_RETRIES = 2;
+
     try {
       const cleanImage = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
@@ -166,6 +169,8 @@ CRITICAL: Be VERY precise with the bounding box. It should include:
 
 Return ONLY the JSON object.`;
 
+      console.log(`[ImageMasker] Calling Gemini for face detection (attempt ${retryCount + 1}/${MAX_RETRIES + 1})...`);
+
       const response = await client.models.generateContent({
         model: ANALYSIS_MODEL,
         contents: [
@@ -184,15 +189,60 @@ Return ONLY the JSON object.`;
         ],
         config: {
           safetySettings: [
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
           ],
         },
       });
 
+      // Check if response was blocked by safety filters
+      if (response.promptFeedback?.blockReason) {
+        const blockReason = response.promptFeedback.blockReason;
+        console.error('[ImageMasker] Request blocked by safety filters:', blockReason);
+        throw new Error(`Image blocked by safety filters: ${blockReason}`);
+      }
+
+      // Check if we have any candidates
+      if (!response.candidates || response.candidates.length === 0) {
+        console.error('[ImageMasker] No candidates in response:', JSON.stringify(response, null, 2));
+
+        // Retry on empty response (could be transient API issue)
+        if (retryCount < MAX_RETRIES) {
+          console.log(`[ImageMasker] Retrying face detection (attempt ${retryCount + 2}/${MAX_RETRIES + 1})...`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
+          return this.detectFaceRegion(imageBase64, retryCount + 1);
+        }
+
+        throw new Error('Face detection API returned empty response');
+      }
+
+      // Check for finish reason that might indicate an issue
+      const finishReason = response.candidates[0].finishReason;
+      if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
+        console.error('[ImageMasker] Unexpected finish reason:', finishReason);
+        if (finishReason === 'SAFETY') {
+          throw new Error('Image was flagged by content safety filters');
+        }
+      }
+
       let text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+      if (!text) {
+        console.error('[ImageMasker] Empty text response from Gemini');
+
+        // Retry on empty text (could be transient)
+        if (retryCount < MAX_RETRIES) {
+          console.log(`[ImageMasker] Retrying due to empty response...`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          return this.detectFaceRegion(imageBase64, retryCount + 1);
+        }
+
+        throw new Error('Face detection API returned empty text response');
+      }
+
+      console.log('[ImageMasker] Raw response text:', text.substring(0, 200));
 
       text = text.replace(/```json/g, '').replace(/```/g, '').trim();
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -200,17 +250,44 @@ Return ONLY the JSON object.`;
       if (!jsonMatch) {
         console.error(
           '[ImageMasker] Failed to parse face detection response:',
-          text.substring(0, 100)
+          text.substring(0, 200)
         );
-        return null;
+
+        // Retry on parse failure
+        if (retryCount < MAX_RETRIES) {
+          console.log(`[ImageMasker] Retrying due to parse failure...`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          return this.detectFaceRegion(imageBase64, retryCount + 1);
+        }
+
+        throw new Error('Failed to parse face detection response from API');
       }
 
-      const data = JSON.parse(jsonMatch[0]);
+      let data;
+      try {
+        data = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        console.error('[ImageMasker] JSON parse error:', parseError);
+        console.error('[ImageMasker] Attempted to parse:', jsonMatch[0].substring(0, 200));
+        throw new Error('Invalid JSON in face detection response');
+      }
 
       if (!data.faceDetected) {
-        console.log('[ImageMasker] No face detected in image');
+        console.log('[ImageMasker] Gemini reports no face detected in image');
+        // This is a genuine "no face" scenario, return null (not an error)
         return null;
       }
+
+      // Validate the response has required fields
+      if (!data.faceBoundingBox || typeof data.faceBoundingBox.x !== 'number') {
+        console.error('[ImageMasker] Invalid face bounding box data:', data.faceBoundingBox);
+        throw new Error('Invalid face detection response: missing bounding box');
+      }
+
+      console.log('[ImageMasker] Face detected successfully:', {
+        bbox: data.faceBoundingBox,
+        confidence: data.faceBoundingBox.confidence,
+      });
 
       return {
         bbox: {
@@ -231,8 +308,35 @@ Return ONLY the JSON object.`;
         },
       };
     } catch (error) {
-      console.error('[ImageMasker] Face detection error:', error);
-      return null;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[ImageMasker] Face detection error:', errorMessage);
+
+      // Check for specific error types that should not be retried
+      if (errorMessage.includes('blocked') || errorMessage.includes('safety')) {
+        throw error; // Re-throw safety-related errors
+      }
+
+      // Check for API/network errors that might be transient
+      if (retryCount < MAX_RETRIES && (
+        errorMessage.includes('ECONNRESET') ||
+        errorMessage.includes('ETIMEDOUT') ||
+        errorMessage.includes('fetch') ||
+        errorMessage.includes('network') ||
+        errorMessage.includes('500') ||
+        errorMessage.includes('503') ||
+        errorMessage.includes('rate')
+      )) {
+        console.log(`[ImageMasker] Retrying after network/API error...`);
+        await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1)));
+        return this.detectFaceRegion(imageBase64, retryCount + 1);
+      }
+
+      // If error already has a specific message, re-throw it
+      if (error instanceof Error && !errorMessage.includes('Unknown')) {
+        throw error;
+      }
+
+      throw new Error(`Face detection failed: ${errorMessage}`);
     }
   }
 
@@ -409,14 +513,16 @@ Return ONLY the JSON object.`;
 
   /**
    * Main segmentation method - returns all mask data needed for try-on
+   * Throws errors for API failures, returns null only for genuine "no face" cases
    */
   async segment(imageBase64: string): Promise<SegmentationResult | null> {
     console.log('[ImageMasker] Starting segmentation...');
 
     // Step 1: Detect face region
+    // This will throw errors for API failures, return null only for genuine "no face"
     const detection = await this.detectFaceRegion(imageBase64);
     if (!detection) {
-      console.error('[ImageMasker] Face detection failed');
+      console.log('[ImageMasker] No face detected in image (genuine result, not an error)');
       return null;
     }
 

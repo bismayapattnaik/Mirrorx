@@ -16,7 +16,7 @@
  * This architecture ensures the user's face is NEVER modified.
  */
 
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold, type SafetySetting } from '@google/genai';
 import type { TryOnMode } from '@mrrx/shared';
 import sharp from 'sharp';
 
@@ -48,11 +48,11 @@ const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash-exp';
 
 type Gender = 'male' | 'female';
 
-const SAFETY_SETTINGS = [
-  { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-  { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-  { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+const SAFETY_SETTINGS: SafetySetting[] = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
 ];
 
 // Cache
@@ -94,6 +94,7 @@ async function getAppearanceProfile(selfieBase64: string): Promise<AppearancePro
 
 /**
  * Get cached segmentation
+ * Throws errors for API failures, returns null only for genuine "no face" cases
  */
 async function getSegmentation(selfieBase64: string): Promise<SegmentationResult | null> {
   const cacheKey = selfieBase64.substring(0, 100);
@@ -105,11 +106,13 @@ async function getSegmentation(selfieBase64: string): Promise<SegmentationResult
   }
 
   console.log('[Gemini] Creating new segmentation...');
+  // This may throw an error for API failures - let it propagate
   const data = await segmentImage(selfieBase64);
 
   if (data) {
     segmentationCache.set(cacheKey, { data, timestamp: Date.now() });
   }
+  // Returns null only when no face is genuinely detected (not for API errors)
   return data;
 }
 
@@ -500,13 +503,39 @@ export async function generateTryOnImage(
     console.log('[Gemini] Step 1: Analyzing image...');
     processingSteps.push('Image analysis');
 
-    const [segmentation, profile] = await Promise.all([
-      getSegmentation(selfieBase64),
-      getAppearanceProfile(selfieBase64),
-    ]);
+    let segmentation: SegmentationResult | null = null;
+    let profile: AppearanceProfile | null = null;
+    let segmentationError: Error | null = null;
+
+    try {
+      [segmentation, profile] = await Promise.all([
+        getSegmentation(selfieBase64),
+        getAppearanceProfile(selfieBase64),
+      ]);
+    } catch (error) {
+      // Store the segmentation error to provide a better message
+      segmentationError = error instanceof Error ? error : new Error(String(error));
+      console.error('[Gemini] Segmentation/profile extraction failed:', segmentationError.message);
+    }
+
+    // Check if segmentation failed
+    if (segmentationError) {
+      // Provide specific error message based on the failure reason
+      const errorMsg = segmentationError.message;
+      if (errorMsg.includes('blocked') || errorMsg.includes('safety')) {
+        throw new Error('Image could not be processed due to content restrictions. Please try a different photo.');
+      } else if (errorMsg.includes('API') || errorMsg.includes('empty response')) {
+        throw new Error('Face detection service temporarily unavailable. Please try again.');
+      } else if (errorMsg.includes('parse') || errorMsg.includes('JSON')) {
+        throw new Error('Failed to analyze image. Please try again with a clearer photo.');
+      } else {
+        throw new Error(`Image analysis failed: ${errorMsg}`);
+      }
+    }
 
     if (!segmentation) {
-      throw new Error('Failed to segment image - no face detected');
+      // This is a genuine "no face detected" scenario
+      throw new Error('No face detected - please upload a photo where your face is clearly visible');
     }
 
     console.log('[Gemini] Segmentation complete:', {
