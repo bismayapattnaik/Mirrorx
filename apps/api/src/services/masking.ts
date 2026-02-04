@@ -20,7 +20,7 @@ import sharp from 'sharp';
 import { GoogleGenAI } from '@google/genai';
 
 const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-pro-preview-05-06';
+const ANALYSIS_MODEL = process.env.GEMINI_TEXT_MODEL || 'gemini-3-pro';
 
 /**
  * Face bounding box with landmarks
