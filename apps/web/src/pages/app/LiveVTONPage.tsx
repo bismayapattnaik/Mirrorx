@@ -2,13 +2,12 @@
  * @fileoverview Live Virtual Try-On Page
  * 
  * Standalone page for accessing the Live VTON feature with WebRTC.
- * Users can upload their own clothing images and see themselves
- * wearing them in real-time using Decart's MirageLSD 2.0 model.
+ * Users can try demo clothing or upload their own images.
  */
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Camera, Upload, Zap } from 'lucide-react';
+import { ArrowLeft, Sparkles, Camera, Upload, Zap, Shirt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import LiveVTON from '@/components/LiveVTON';
 
@@ -57,7 +56,7 @@ export default function LiveVTONPage() {
                             Real-Time Virtual Try-On
                         </h1>
                         <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
-                            Upload any clothing image and see yourself wearing it instantly with AI-powered live video transformation
+                            Try our demo clothing or upload your own. See yourself wearing it instantly with AI-powered live video transformation.
                         </p>
 
                         <Button
@@ -74,21 +73,21 @@ export default function LiveVTONPage() {
                     <div className="grid md:grid-cols-3 gap-8 mb-16">
                         <div className="bg-white/5 rounded-2xl p-8 border border-white/10 hover:border-gold-500/30 transition-colors">
                             <div className="w-14 h-14 bg-gold-500/20 rounded-xl flex items-center justify-center mb-6">
-                                <Upload className="w-7 h-7 text-gold-400" />
+                                <Shirt className="w-7 h-7 text-gold-400" />
                             </div>
-                            <h3 className="text-xl font-semibold text-white mb-3">Upload Any Clothing</h3>
+                            <h3 className="text-xl font-semibold text-white mb-3">Demo Clothing</h3>
                             <p className="text-gray-400">
-                                Simply upload an image of any shirt, dress, jacket, or outfit you want to try on
+                                Browse 5 free demo items including blazers, shirts, dresses, and jackets to try instantly
                             </p>
                         </div>
 
                         <div className="bg-white/5 rounded-2xl p-8 border border-white/10 hover:border-gold-500/30 transition-colors">
                             <div className="w-14 h-14 bg-gold-500/20 rounded-xl flex items-center justify-center mb-6">
-                                <Camera className="w-7 h-7 text-gold-400" />
+                                <Upload className="w-7 h-7 text-gold-400" />
                             </div>
-                            <h3 className="text-xl font-semibold text-white mb-3">Real-Time Preview</h3>
+                            <h3 className="text-xl font-semibold text-white mb-3">Upload Your Own</h3>
                             <p className="text-gray-400">
-                                See yourself wearing the clothing instantly with sub-40ms latency WebRTC streaming
+                                Upload any clothing image and see yourself wearing it with realistic textures
                             </p>
                         </div>
 
@@ -96,9 +95,9 @@ export default function LiveVTONPage() {
                             <div className="w-14 h-14 bg-gold-500/20 rounded-xl flex items-center justify-center mb-6">
                                 <Sparkles className="w-7 h-7 text-gold-400" />
                             </div>
-                            <h3 className="text-xl font-semibold text-white mb-3">Photorealistic</h3>
+                            <h3 className="text-xl font-semibold text-white mb-3">Style Modes</h3>
                             <p className="text-gray-400">
-                                AI preserves your identity while applying natural lighting, shadows, and realistic fabric textures
+                                Choose Realistic, Anime, or Cyberpunk styles for different visual effects
                             </p>
                         </div>
                     </div>
@@ -106,27 +105,34 @@ export default function LiveVTONPage() {
                     {/* How It Works */}
                     <div className="bg-white/5 rounded-2xl p-8 border border-white/10">
                         <h2 className="text-2xl font-bold text-white mb-8 text-center">How It Works</h2>
-                        <div className="grid md:grid-cols-3 gap-8">
+                        <div className="grid md:grid-cols-4 gap-6">
                             <div className="text-center">
                                 <div className="w-12 h-12 bg-gold-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <span className="text-gold-400 font-bold text-xl">1</span>
                                 </div>
-                                <h4 className="text-white font-medium mb-2">Upload Clothing</h4>
-                                <p className="text-gray-400 text-sm">Upload a photo of the clothing item you want to try on</p>
+                                <h4 className="text-white font-medium mb-2">Connect</h4>
+                                <p className="text-gray-400 text-sm">Allow camera access</p>
                             </div>
                             <div className="text-center">
                                 <div className="w-12 h-12 bg-gold-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <span className="text-gold-400 font-bold text-xl">2</span>
                                 </div>
-                                <h4 className="text-white font-medium mb-2">Start Camera</h4>
-                                <p className="text-gray-400 text-sm">Allow camera access and connect to our AI streaming service</p>
+                                <h4 className="text-white font-medium mb-2">Choose</h4>
+                                <p className="text-gray-400 text-sm">Select demo or upload</p>
                             </div>
                             <div className="text-center">
                                 <div className="w-12 h-12 bg-gold-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <span className="text-gold-400 font-bold text-xl">3</span>
                                 </div>
+                                <h4 className="text-white font-medium mb-2">Try On</h4>
+                                <p className="text-gray-400 text-sm">Click "Try On Live"</p>
+                            </div>
+                            <div className="text-center">
+                                <div className="w-12 h-12 bg-gold-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <span className="text-gold-400 font-bold text-xl">4</span>
+                                </div>
                                 <h4 className="text-white font-medium mb-2">See Results</h4>
-                                <p className="text-gray-400 text-sm">Watch AI transform your video in real-time to show you wearing the outfit</p>
+                                <p className="text-gray-400 text-sm">Real-time transformation!</p>
                             </div>
                         </div>
                     </div>
