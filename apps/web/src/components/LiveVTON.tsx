@@ -10,7 +10,7 @@
  * Credit: 1 per second
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     X, Loader2, Sparkles, Video, VideoOff,
