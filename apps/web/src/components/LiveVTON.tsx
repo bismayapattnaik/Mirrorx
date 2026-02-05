@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/store/auth-store';
 
 // Demo clothing items for users to try
 const DEMO_CLOTHING = [
@@ -67,10 +68,11 @@ interface LiveVTONProps {
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
 
-// Decart Realtime API settings - Using Lucy 2 RT for face preservation
-const DECART_WS_URL = 'wss://api3.decart.ai/v1/stream';
-const DECART_MODEL = 'lucy_2_rt'; // Lucy 2 RT with character reference for 100% face preservation
-const API_KEY = import.meta.env.VITE_DECART_API_KEY || '';
+interface DecartConfig {
+    serverUrl: string;
+    sessionToken: string;
+    model: string;
+}
 
 // Model specifications for lucy_2_rt
 const MODEL_SPECS = {
@@ -80,6 +82,9 @@ const MODEL_SPECS = {
 };
 
 export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
+    // Auth
+    const { session } = useAuthStore();
+
     // Refs
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -97,6 +102,66 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
     const [currentPrompt, setCurrentPrompt] = useState('');
     const [showOriginal, setShowOriginal] = useState(false);
     const [styleMode, setStyleMode] = useState<'realistic' | 'anime' | 'cyberpunk'>('realistic');
+
+    // Config state
+    const [config, setConfig] = useState<DecartConfig | null>(null);
+    const [isConfigLoading, setIsConfigLoading] = useState(false);
+
+    // Fetch config on open
+    useEffect(() => {
+        const fetchConfig = async () => {
+            if (!isOpen || config) return;
+
+            if (!session?.access_token) {
+                console.warn('[LiveVTON] No access token available');
+                setError('Please log in to use Live Try-On');
+                return;
+            }
+
+            try {
+                setIsConfigLoading(true);
+                setError(null);
+
+                const apiUrl = import.meta.env.VITE_API_URL;
+                console.log('[LiveVTON] Fetching config from:', `${apiUrl}/tryon/live/config`);
+
+                const response = await fetch(`${apiUrl}/tryon/live/config`, {
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`
+                    }
+                });
+
+                if (response.status === 401) {
+                    throw new Error('Unauthorized. Please log in again.');
+                }
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Failed to get configuration: ${response.status} ${errorText}`);
+                }
+
+                const data = await response.json();
+                console.log('[LiveVTON] Config received:', data);
+
+                if (!data.serverUrl || !data.sessionToken) {
+                    throw new Error('Invalid configuration received from server');
+                }
+
+                setConfig({
+                    serverUrl: data.serverUrl,
+                    sessionToken: data.sessionToken,
+                    model: data.model || 'lucy_2_rt'
+                });
+            } catch (err) {
+                console.error('[LiveVTON] Config fetch error:', err);
+                setError((err as Error).message || 'Failed to initialize session');
+            } finally {
+                setIsConfigLoading(false);
+            }
+        };
+
+        fetchConfig();
+    }, [isOpen, config, session]);
 
     // Get current clothing item (uploaded or demo)
     const currentClothing = uploadedImage
@@ -147,9 +212,62 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
         setSelectedIndex((prev: number) => (prev - 1 + DEMO_CLOTHING.length) % DEMO_CLOTHING.length);
     };
 
+    // Create WebRTC peer connection (DEFINED BEFORE CONNECT)
+    const createPeerConnection = useCallback(async (stream: MediaStream) => {
+        const pc = new RTCPeerConnection({
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+            ],
+        });
+        pcRef.current = pc;
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate && wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({
+                    type: 'ice-candidate',
+                    candidate: event.candidate.toJSON(),
+                }));
+            }
+        };
+
+        // Receive transformed video stream
+        pc.ontrack = (event) => {
+            console.log('[LiveVTON] Received transformed stream!');
+            if (remoteVideoRef.current && event.streams[0]) {
+                remoteVideoRef.current.srcObject = event.streams[0];
+                remoteVideoRef.current.play().catch(console.error);
+            }
+        };
+
+        // Add local video track
+        stream.getTracks().forEach((track: MediaStreamTrack) => {
+            pc.addTrack(track, stream);
+        });
+
+        // Create and send offer
+        const offer = await pc.createOffer({
+            offerToReceiveVideo: true,
+            offerToReceiveAudio: false,
+        });
+        await pc.setLocalDescription(offer);
+
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+                type: 'offer',
+                sdp: offer.sdp,
+            }));
+        }
+    }, []);
+
     // Connect to Decart WebRTC
     const connect = useCallback(async () => {
         if (connectionState === 'connecting' || connectionState === 'connected') return;
+
+        if (!config) {
+            setError('System initializing, please wait...');
+            return;
+        }
 
         try {
             setConnectionState('connecting');
@@ -173,9 +291,9 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
                 localVideoRef.current.play().catch(console.error);
             }
 
-            // Connect WebSocket with API key and model
-            const wsUrl = `${DECART_WS_URL}?api_key=${API_KEY}&model=${DECART_MODEL}`;
-            console.log('[LiveVTON] Connecting to Decart with model:', DECART_MODEL);
+            // Connect WebSocket with API key and model from config
+            const wsUrl = `${config.serverUrl}?api_key=${config.sessionToken}&model=${config.model}`;
+            console.log('[LiveVTON] Connecting to Decart with model:', config.model);
 
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
@@ -231,55 +349,7 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
             }
             setConnectionState('disconnected');
         }
-    }, [connectionState]);
-
-    // Create WebRTC peer connection
-    const createPeerConnection = useCallback(async (stream: MediaStream) => {
-        const pc = new RTCPeerConnection({
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-            ],
-        });
-        pcRef.current = pc;
-
-        pc.onicecandidate = (event) => {
-            if (event.candidate && wsRef.current?.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({
-                    type: 'ice-candidate',
-                    candidate: event.candidate.toJSON(),
-                }));
-            }
-        };
-
-        // Receive transformed video stream
-        pc.ontrack = (event) => {
-            console.log('[LiveVTON] Received transformed stream!');
-            if (remoteVideoRef.current && event.streams[0]) {
-                remoteVideoRef.current.srcObject = event.streams[0];
-                remoteVideoRef.current.play().catch(console.error);
-            }
-        };
-
-        // Add local video track
-        stream.getTracks().forEach((track: MediaStreamTrack) => {
-            pc.addTrack(track, stream);
-        });
-
-        // Create and send offer
-        const offer = await pc.createOffer({
-            offerToReceiveVideo: true,
-            offerToReceiveAudio: false,
-        });
-        await pc.setLocalDescription(offer);
-
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
-                type: 'offer',
-                sdp: offer.sdp,
-            }));
-        }
-    }, []);
+    }, [connectionState, config, createPeerConnection]);
 
     // Disconnect
     const disconnect = useCallback(() => {
@@ -351,13 +421,13 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
 
     // Auto-connect when opened
     useEffect(() => {
-        if (isOpen && connectionState === 'disconnected') {
+        if (isOpen && connectionState === 'disconnected' && config) {
             connect();
         }
         return () => {
             if (!isOpen) disconnect();
         };
-    }, [isOpen, connectionState, connect, disconnect]);
+    }, [isOpen, connectionState, connect, disconnect, config]);
 
     // Cleanup on unmount
     useEffect(() => {

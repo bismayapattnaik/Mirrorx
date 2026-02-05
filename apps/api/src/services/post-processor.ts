@@ -54,9 +54,9 @@ export interface PostProcessingOptions {
 }
 
 const DEFAULT_OPTIONS: Required<PostProcessingOptions> = {
-  minSimilarityThreshold: 0.92,
+  minSimilarityThreshold: 0.99, // 99% Face Preservation (Strict)
   enableColorCorrection: true,
-  featherRadius: 15,
+  featherRadius: 25, // Increased feathering to eliminate sticker edges
   enableValidation: true,
   maxRetries: 2,
 };
