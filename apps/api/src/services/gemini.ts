@@ -563,42 +563,13 @@ export async function generateTryOnImage(
         generatedImage = await generateFallbackPose(selfieBase64, productBase64, gender);
       }
 
-      // Step B: CONDITIONAL Identity Guardrail (only if face is corrupted)
-      // This eliminates the "sticker effect" from mandatory hard compositing
-      const isFaceCorrupted = await detectFaceCorruption(
-        selfieBase64,
-        generatedImage,
-        segmentation,
-        0.60 // Lower threshold - only restore if SEVERELY corrupted
-      );
-
-      if (isFaceCorrupted) {
-        console.log('[Gemini] FULL_FIT: Face corruption detected, applying restoration...');
-        processingSteps.push('Face restoration (conditional)');
-
-        const postResult = await restoreIdentity(
-          selfieBase64,
-          generatedImage,
-          segmentation,
-          {
-            minSimilarityThreshold: 0.85,
-            enableColorCorrection: true,
-            enableValidation: true,
-          }
-        );
-
-        resultImage = postResult.imageBase64;
-
-        console.log('[Gemini] Identity guardrail result:', {
-          faceOverlaid: postResult.faceOverlaid,
-          similarity: `${(postResult.faceSimilarity * 100).toFixed(1)}%`,
-          method: postResult.method,
-        });
-      } else {
-        console.log('[Gemini] FULL_FIT: AI preserved face - no restoration needed (eliminates sticker effect)');
-        processingSteps.push('Face preserved by AI');
-        resultImage = generatedImage;
-      }
+      // FULL_FIT MODE: COMPLETELY DISABLE face restoration
+      // Trust Gemini's Reference Image Injection to handle everything
+      // ANY post-processing creates the "sticker effect" with hard edges and circular cutouts
+      // The AI naturally blends face/body/clothing - we must NOT override it with sharp.composite()
+      console.log('[Gemini] FULL_FIT mode: Using AI result directly - NO face restoration');
+      processingSteps.push('AI output (no post-processing)');
+      resultImage = generatedImage;
     }
 
     // Final validation
