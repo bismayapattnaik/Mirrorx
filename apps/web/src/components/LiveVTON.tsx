@@ -167,9 +167,7 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
 
             ws.onclose = (event) => {
                 console.log('[LiveVTON] WebSocket closed:', event.code, event.reason);
-                if (connectionState === 'connected') {
-                    setError('Connection lost. Please reconnect.');
-                }
+                setError('Connection closed. Please reconnect.');
                 setConnectionState('disconnected');
             };
 
