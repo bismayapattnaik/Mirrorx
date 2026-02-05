@@ -31,6 +31,7 @@ import {
 import {
   IdentityGuard,
   restoreIdentity,
+  detectFaceCorruption,
   validateImageContent,
   withRetry,
   type PostProcessingResult,
@@ -490,28 +491,31 @@ export async function generateTryOnImage(
         console.warn('[Gemini] Inpainting validation failed after retries');
       }
 
-      // HARD LOCK: ALWAYS apply face restoration in PART mode
-      // We do NOT trust the diffusion model to preserve pixels perfectly
-      // The original face must be physically stamped back onto the result
-      console.log('[Gemini] PART mode: Forcing mandatory face overlay for 100% identity preservation...');
-      processingSteps.push('Face overlay (mandatory)');
-
-      const postResult = await restoreIdentity(
+      // CONDITIONAL: Only apply face restoration if the AI corrupted the face
+      // This eliminates the "sticker effect" from hard compositing
+      const isFaceCorrupted = await detectFaceCorruption(
         selfieBase64,
         resultImage,
         segmentation,
-        { minSimilarityThreshold: 0.0 } // Force overwrite regardless of similarity
+        0.75 // Corruption threshold - below this, face needs restoration
       );
-      resultImage = postResult.imageBase64;
 
-      // Log final similarity for debugging
-      const identityGuard = new IdentityGuard({ minSimilarityThreshold: 0.0 });
-      const finalSimilarity = await identityGuard.calculateFaceSimilarity(
-        selfieBase64,
-        resultImage,
-        segmentation
-      );
-      console.log(`[Gemini] Face similarity after forced overlay: ${(finalSimilarity * 100).toFixed(1)}%`);
+      if (isFaceCorrupted) {
+        console.log('[Gemini] Face corruption detected in AI output, applying restoration...');
+        processingSteps.push('Face restoration (conditional)');
+
+        const postResult = await restoreIdentity(
+          selfieBase64,
+          resultImage,
+          segmentation,
+          { minSimilarityThreshold: 0.85, enableColorCorrection: true }
+        );
+        resultImage = postResult.imageBase64;
+        console.log(`[Gemini] Face restored with ${(postResult.faceSimilarity * 100).toFixed(1)}% similarity`);
+      } else {
+        console.log('[Gemini] AI preserved face correctly - no restoration needed (eliminates sticker effect)');
+        processingSteps.push('Face preserved by AI');
+      }
 
     } else {
       // ─────────────────────────────────────────────────────────────────────

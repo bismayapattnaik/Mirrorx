@@ -505,6 +505,44 @@ export async function quickFaceOverlay(
 }
 
 /**
+ * Detect if the generated image has face corruption
+ * Returns true if face is significantly different from original (likely corrupted)
+ * Used to determine if conditional face restoration is needed
+ */
+export async function detectFaceCorruption(
+  originalImageBase64: string,
+  generatedImageBase64: string,
+  segmentation: SegmentationResult,
+  corruptionThreshold: number = 0.75
+): Promise<boolean> {
+  try {
+    const guard = new IdentityGuard();
+    const similarity = await guard.calculateFaceSimilarity(
+      originalImageBase64,
+      generatedImageBase64,
+      segmentation
+    );
+
+    console.log(`[PostProcessor] Face similarity check: ${(similarity * 100).toFixed(1)}% (threshold: ${(corruptionThreshold * 100).toFixed(0)}%)`);
+
+    // If similarity is below threshold, face is considered corrupted
+    const isCorrupted = similarity < corruptionThreshold;
+
+    if (isCorrupted) {
+      console.log('[PostProcessor] Face corruption detected - restoration needed');
+    } else {
+      console.log('[PostProcessor] Face preserved by AI - no restoration needed');
+    }
+
+    return isCorrupted;
+  } catch (error) {
+    console.error('[PostProcessor] Face corruption detection error:', error);
+    // On error, assume corruption and restore to be safe
+    return true;
+  }
+}
+
+/**
  * Detect black/empty regions in generated image
  * Returns true if image appears valid
  */
@@ -618,5 +656,6 @@ export default {
   validateFaceUnchanged,
   quickFaceOverlay,
   validateImageContent,
+  detectFaceCorruption,
   withRetry,
 };
