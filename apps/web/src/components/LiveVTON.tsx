@@ -1,31 +1,23 @@
 /**
- * @fileoverview Live Virtual Try-On Component
+ * @fileoverview Live Virtual Try-On Component with WebRTC
  *
- * Real-time video try-on using Decart AI's lucy-pro-v2v model.
- * Captures video chunks from webcam and transforms them with clothing overlay.
+ * Real-time video try-on using Decart AI's WebRTC API.
+ * True realtime streaming with <40ms per frame latency.
  *
- * Architecture:
- * 1. MediaRecorder captures short video chunks (1-2 seconds)
- * 2. Chunks are sent to backend /tryon/live/transform endpoint
- * 3. Backend uses Decart lucy-pro-v2v for transformation
- * 4. Transformed video is rendered in overlay canvas
- * 5. MediaPipe provides instant pose feedback while AI processes
+ * Uses vanilla WebSocket + WebRTC (no SDK dependency):
+ * 1. WebSocket for signaling (offer/answer/ICE)
+ * 2. WebRTC for video streaming
+ * 3. Dynamic prompt updates for clothing changes
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     X, Loader2, Sparkles, Video, VideoOff,
-    ChevronLeft, ChevronRight, ShoppingBag, Wand2, Pause, Play
+    ChevronLeft, ChevronRight, ShoppingBag, Wand2, Wifi, WifiOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import {
-    PoseLandmarker,
-    FilesetResolver,
-    DrawingUtils,
-} from '@mediapipe/tasks-vision';
-import { useAuthStore } from '@/store/auth-store';
 
 interface ClothingItem {
     id: string;
@@ -33,6 +25,7 @@ interface ClothingItem {
     image: string;
     category: string;
     price: number;
+    description?: string;
 }
 
 interface LiveVTONProps {
@@ -42,339 +35,294 @@ interface LiveVTONProps {
     onAddToCart?: (item: ClothingItem) => void;
 }
 
-type ProcessingStatus = 'idle' | 'recording' | 'processing' | 'ready';
+type ConnectionState = 'disconnected' | 'connecting' | 'connected';
 
-const CHUNK_DURATION_MS = 1500; // 1.5 seconds per chunk
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+// Decart Realtime API settings
+const DECART_WS_URL = 'wss://api3.decart.ai/v1/stream';
+const DECART_MODEL = 'lucy_2_rt'; // Supports character reference for clothing
+const API_KEY = import.meta.env.VITE_DECART_API_KEY || '';
+
+// Optimal video settings for Decart
+const VIDEO_CONFIG = {
+    width: 1280,
+    height: 704,
+    frameRate: 25,
+};
 
 export function LiveVTON({ isOpen, onClose, clothing, onAddToCart }: LiveVTONProps) {
-    const { token } = useAuthStore();
-
     // Refs
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const overlayVideoRef = useRef<HTMLVideoElement>(null);
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const streamRef = useRef<MediaStream | null>(null);
-    const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
-    const animationFrameRef = useRef<number>(0);
-    const chunksRef = useRef<Blob[]>([]);
+    const localVideoRef = useRef<HTMLVideoElement>(null);
+    const remoteVideoRef = useRef<HTMLVideoElement>(null);
+    const wsRef = useRef<WebSocket | null>(null);
+    const pcRef = useRef<RTCPeerConnection | null>(null);
+    const localStreamRef = useRef<MediaStream | null>(null);
 
     // State
-    const [isActive, setIsActive] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [status, setStatus] = useState<ProcessingStatus>('idle');
+    const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [error, setError] = useState<string | null>(null);
-    const [transformedVideoUrl, setTransformedVideoUrl] = useState<string | null>(null);
-    const [poseDetected, setPoseDetected] = useState(false);
-    const [styleMode, setStyleMode] = useState<'realistic' | 'anime' | 'artistic'>('realistic');
+    const [currentPrompt, setCurrentPrompt] = useState('');
+    const [isEditingActive, setIsEditingActive] = useState(false);
+    const [styleMode, setStyleMode] = useState<'realistic' | 'anime' | 'cyberpunk'>('realistic');
 
     const selectedItem = clothing[selectedIndex];
 
-    // Initialize MediaPipe Pose Landmarker
-    useEffect(() => {
-        if (!isOpen) return;
+    // Generate try-on prompt from clothing item
+    const generateTryOnPrompt = useCallback((item: ClothingItem, style: string) => {
+        const stylePrefix = style === 'anime'
+            ? 'Anime style, '
+            : style === 'cyberpunk'
+                ? 'Cyberpunk aesthetic with neon lighting, '
+                : '';
 
-        const initPoseLandmarker = async () => {
-            try {
-                const vision = await FilesetResolver.forVisionTasks(
-                    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
-                );
+        const description = item.description || `${item.name} ${item.category}`;
 
-                poseLandmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
-                    baseOptions: {
-                        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
-                        delegate: 'GPU',
-                    },
-                    runningMode: 'VIDEO',
-                    numPoses: 1,
-                });
+        return `${stylePrefix}Transform the person to wear: ${description}. Maintain their face identity exactly. High-quality fashion, realistic textures, natural draping.`;
+    }, []);
 
-                console.log('[LiveVTON] Pose landmarker initialized');
-            } catch (err) {
-                console.error('[LiveVTON] Failed to init pose landmarker:', err);
-            }
-        };
+    // Connect to Decart WebRTC
+    const connect = useCallback(async () => {
+        if (connectionState === 'connecting' || connectionState === 'connected') return;
 
-        initPoseLandmarker();
-
-        return () => {
-            poseLandmarkerRef.current?.close();
-        };
-    }, [isOpen]);
-
-    // Start camera
-    const startCamera = useCallback(async () => {
         try {
-            setIsLoading(true);
+            setConnectionState('connecting');
             setError(null);
 
+            // Get user's camera
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
+                    width: { ideal: VIDEO_CONFIG.width },
+                    height: { ideal: VIDEO_CONFIG.height },
+                    frameRate: { ideal: VIDEO_CONFIG.frameRate },
                     facingMode: 'user',
                 },
                 audio: false,
             });
 
-            streamRef.current = stream;
+            localStreamRef.current = stream;
 
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-                await videoRef.current.play();
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = stream;
             }
 
-            setIsActive(true);
-            setIsLoading(false);
-            startPoseDetection();
-        } catch (err) {
-            console.error('[LiveVTON] Camera error:', err);
-            setError('Failed to access camera. Please allow camera permissions.');
-            setIsLoading(false);
-        }
-    }, []);
+            // Connect WebSocket with API key and model
+            const ws = new WebSocket(
+                `${DECART_WS_URL}?api_key=${API_KEY}&model=${DECART_MODEL}`
+            );
+            wsRef.current = ws;
 
-    // Stop camera
-    const stopCamera = useCallback(() => {
-        if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop());
-            streamRef.current = null;
-        }
+            ws.onopen = () => {
+                console.log('[LiveVTON] WebSocket connected');
+                createPeerConnection(stream);
+            };
 
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-        }
+            ws.onmessage = async (event) => {
+                const message = JSON.parse(event.data);
 
-        cancelAnimationFrame(animationFrameRef.current);
-        setIsActive(false);
-        setStatus('idle');
-        setTransformedVideoUrl(null);
-    }, []);
-
-    // Start pose detection loop
-    const startPoseDetection = useCallback(() => {
-        const detect = () => {
-            if (!videoRef.current || !canvasRef.current || !poseLandmarkerRef.current) {
-                animationFrameRef.current = requestAnimationFrame(detect);
-                return;
-            }
-
-            const video = videoRef.current;
-            const canvas = canvasRef.current;
-            const ctx = canvas.getContext('2d');
-
-            if (!ctx || video.readyState < 2) {
-                animationFrameRef.current = requestAnimationFrame(detect);
-                return;
-            }
-
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-
-            // Draw video frame
-            ctx.drawImage(video, 0, 0);
-
-            // Detect pose
-            const results = poseLandmarkerRef.current.detectForVideo(video, performance.now());
-
-            if (results.landmarks && results.landmarks.length > 0) {
-                setPoseDetected(true);
-
-                // Draw pose landmarks for visual feedback
-                const drawingUtils = new DrawingUtils(ctx);
-                for (const landmarks of results.landmarks) {
-                    drawingUtils.drawConnectors(
-                        landmarks,
-                        PoseLandmarker.POSE_CONNECTIONS,
-                        { color: '#22c55e', lineWidth: 2 }
-                    );
-                    drawingUtils.drawLandmarks(landmarks, {
-                        color: '#ef4444',
-                        lineWidth: 1,
-                        radius: 3,
+                if (message.type === 'answer' && pcRef.current) {
+                    await pcRef.current.setRemoteDescription({
+                        type: 'answer',
+                        sdp: message.sdp,
                     });
+                    setConnectionState('connected');
+                    console.log('[LiveVTON] WebRTC connected');
                 }
-            } else {
-                setPoseDetected(false);
-            }
 
-            animationFrameRef.current = requestAnimationFrame(detect);
+                if (message.type === 'ice-candidate' && pcRef.current) {
+                    try {
+                        await pcRef.current.addIceCandidate(message.candidate);
+                    } catch (err) {
+                        console.warn('[LiveVTON] ICE candidate error:', err);
+                    }
+                }
+            };
+
+            ws.onerror = (err) => {
+                console.error('[LiveVTON] WebSocket error:', err);
+                setError('Connection failed. Check your API key.');
+                setConnectionState('disconnected');
+            };
+
+            ws.onclose = () => {
+                console.log('[LiveVTON] WebSocket closed');
+                setConnectionState('disconnected');
+            };
+
+        } catch (err) {
+            console.error('[LiveVTON] Connection error:', err);
+            setError('Failed to access camera. Please allow camera permissions.');
+            setConnectionState('disconnected');
+        }
+    }, [connectionState]);
+
+    // Create WebRTC peer connection
+    const createPeerConnection = useCallback(async (stream: MediaStream) => {
+        const pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+        });
+        pcRef.current = pc;
+
+        // Send ICE candidates to server
+        pc.onicecandidate = (event) => {
+            if (event.candidate && wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({
+                    type: 'ice-candidate',
+                    candidate: event.candidate,
+                }));
+            }
         };
 
-        detect();
-    }, []);
+        // Receive edited video stream
+        pc.ontrack = (event) => {
+            console.log('[LiveVTON] Received edited stream');
+            if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = event.streams[0];
+            }
+        };
 
-    // Start recording and processing chunks
-    const startRecording = useCallback(async () => {
-        if (!streamRef.current || !selectedItem) {
-            setError('Camera not ready or no clothing selected');
-            return;
-        }
-
-        setStatus('recording');
-        setError(null);
-        chunksRef.current = [];
-
-        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-            ? 'video/webm;codecs=vp9'
-            : 'video/webm';
-
-        const recorder = new MediaRecorder(streamRef.current, {
-            mimeType,
-            videoBitsPerSecond: 2500000, // 2.5 Mbps
+        // Add local tracks
+        stream.getTracks().forEach(track => {
+            pc.addTrack(track, stream);
         });
 
-        mediaRecorderRef.current = recorder;
+        // Create and send offer
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
 
-        recorder.ondataavailable = async (event) => {
-            if (event.data.size > 0) {
-                chunksRef.current.push(event.data);
-
-                // Process the chunk when we have enough data
-                if (chunksRef.current.length >= 1) {
-                    const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-                    chunksRef.current = [];
-                    await processVideoChunk(blob);
-                }
-            }
-        };
-
-        recorder.start(CHUNK_DURATION_MS);
-    }, [selectedItem]);
-
-    // Stop recording
-    const stopRecording = useCallback(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+                type: 'offer',
+                sdp: offer.sdp,
+            }));
         }
-        setStatus('idle');
     }, []);
 
-    // Process a video chunk
-    const processVideoChunk = async (blob: Blob) => {
-        if (!selectedItem || !token) {
-            setError('Please log in to use live try-on');
+    // Disconnect
+    const disconnect = useCallback(() => {
+        // Close WebRTC
+        if (pcRef.current) {
+            pcRef.current.close();
+            pcRef.current = null;
+        }
+
+        // Close WebSocket
+        if (wsRef.current) {
+            wsRef.current.close();
+            wsRef.current = null;
+        }
+
+        // Stop camera
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => track.stop());
+            localStreamRef.current = null;
+        }
+
+        setConnectionState('disconnected');
+        setIsEditingActive(false);
+        setCurrentPrompt('');
+    }, []);
+
+    // Send prompt to apply clothing
+    const applyClothing = useCallback(async () => {
+        if (!selectedItem || wsRef.current?.readyState !== WebSocket.OPEN) {
+            setError('Not connected. Please wait for connection.');
             return;
         }
 
-        setStatus('processing');
+        const prompt = generateTryOnPrompt(selectedItem, styleMode);
+        setCurrentPrompt(prompt);
+        setIsEditingActive(true);
 
-        try {
-            const formData = new FormData();
-            formData.append('video', blob, 'chunk.webm');
-            formData.append('garment_base64', selectedItem.image);
-            formData.append('style', styleMode);
-            formData.append('gender', 'female'); // TODO: Get from user profile
+        // Send prompt
+        wsRef.current.send(JSON.stringify({
+            type: 'prompt',
+            prompt: prompt,
+        }));
 
-            const response = await fetch(`${API_URL}/tryon/video`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: formData,
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to process video');
-            }
-
-            const result = await response.json();
-
-            // Poll for completion
-            await pollForResult(result.job_id);
-        } catch (err) {
-            console.error('[LiveVTON] Processing error:', err);
-            setError('Failed to process video. Please try again.');
-            setStatus('ready');
-        }
-    };
-
-    // Poll for video result
-    const pollForResult = async (jobId: string) => {
-        const maxAttempts = 60; // 30 seconds max
-        let attempts = 0;
-
-        while (attempts < maxAttempts) {
+        // Send character reference image for better clothing matching
+        if (selectedItem.image) {
             try {
-                const response = await fetch(`${API_URL}/tryon/video/${jobId}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                    },
-                });
+                // Convert image URL to base64 and send
+                const response = await fetch(selectedItem.image);
+                const blob = await response.blob();
+                const reader = new FileReader();
 
-                const result = await response.json();
+                reader.onloadend = () => {
+                    const base64 = reader.result as string;
+                    wsRef.current?.send(JSON.stringify({
+                        type: 'image',
+                        data: base64,
+                    }));
+                };
 
-                if (result.status === 'completed') {
-                    // Download and display the video
-                    const videoUrl = `${API_URL}/tryon/video/${jobId}/download`;
-                    setTransformedVideoUrl(videoUrl);
-                    setStatus('ready');
-
-                    // Play the transformed video
-                    if (overlayVideoRef.current) {
-                        overlayVideoRef.current.src = videoUrl;
-                        overlayVideoRef.current.play();
-                    }
-                    return;
-                }
-
-                if (result.status === 'failed') {
-                    throw new Error('Video transformation failed');
-                }
-
-                attempts++;
-                await new Promise(resolve => setTimeout(resolve, 500));
+                reader.readAsDataURL(blob);
             } catch (err) {
-                console.error('[LiveVTON] Poll error:', err);
-                setError('Failed to get transformed video');
-                setStatus('ready');
-                return;
+                console.warn('[LiveVTON] Could not set reference image:', err);
             }
         }
 
-        setError('Video processing timed out');
-        setStatus('ready');
-    };
+        console.log('[LiveVTON] Applied prompt:', prompt);
+    }, [selectedItem, styleMode, generateTryOnPrompt]);
 
-    // Handle close
-    const handleClose = () => {
-        stopCamera();
-        onClose();
-    };
+    // Stop editing (show original)
+    const stopEditing = useCallback(() => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+                type: 'prompt',
+                prompt: '', // Empty prompt to stop editing
+            }));
+        }
+        setIsEditingActive(false);
+        setCurrentPrompt('');
+    }, []);
 
     // Navigate clothing
     const nextClothing = () => {
         setSelectedIndex((prev) => (prev + 1) % clothing.length);
-        setTransformedVideoUrl(null);
+        if (isEditingActive) {
+            setTimeout(() => applyClothing(), 100);
+        }
     };
 
     const prevClothing = () => {
         setSelectedIndex((prev) => (prev - 1 + clothing.length) % clothing.length);
-        setTransformedVideoUrl(null);
+        if (isEditingActive) {
+            setTimeout(() => applyClothing(), 100);
+        }
     };
 
-    // Auto-start camera when opened
+    // Handle close
+    const handleClose = () => {
+        disconnect();
+        onClose();
+    };
+
+    // Auto-connect when opened
     useEffect(() => {
-        if (isOpen && !isActive) {
-            startCamera();
+        if (isOpen && connectionState === 'disconnected') {
+            connect();
         }
 
         return () => {
             if (!isOpen) {
-                stopCamera();
+                disconnect();
             }
         };
-    }, [isOpen, isActive, startCamera, stopCamera]);
+    }, [isOpen]);
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            disconnect();
+        };
+    }, [disconnect]);
 
     if (!isOpen) return null;
 
     return (
         <AnimatePresence>
             <motion.div
-                className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm"
+                className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -385,10 +333,20 @@ export function LiveVTON({ isOpen, onClose, clothing, onAddToCart }: LiveVTONPro
                         <Sparkles className="w-6 h-6 text-gold-400" />
                         <span className="text-xl font-bold text-white">Live Try-On</span>
                         <span className={cn(
-                            "px-2 py-1 text-xs rounded-full",
-                            poseDetected ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"
+                            "px-3 py-1 text-xs rounded-full flex items-center gap-2",
+                            connectionState === 'connected'
+                                ? "bg-green-500/20 text-green-400"
+                                : connectionState === 'connecting'
+                                    ? "bg-yellow-500/20 text-yellow-400"
+                                    : "bg-red-500/20 text-red-400"
                         )}>
-                            {poseDetected ? 'Body Detected' : 'Stand in Frame'}
+                            {connectionState === 'connected' ? (
+                                <><Wifi className="w-3 h-3" /> Connected</>
+                            ) : connectionState === 'connecting' ? (
+                                <><Loader2 className="w-3 h-3 animate-spin" /> Connecting...</>
+                            ) : (
+                                <><WifiOff className="w-3 h-3" /> Disconnected</>
+                            )}
                         </span>
                     </div>
 
@@ -403,78 +361,80 @@ export function LiveVTON({ isOpen, onClose, clothing, onAddToCart }: LiveVTONPro
                 </div>
 
                 {/* Main Content */}
-                <div className="flex h-full pt-16 pb-24">
+                <div className="flex h-full pt-16 pb-4">
                     {/* Video Area */}
-                    <div className="flex-1 relative">
-                        {/* Live Camera Feed */}
-                        <video
-                            ref={videoRef}
-                            className="absolute inset-0 w-full h-full object-cover"
-                            playsInline
-                            muted
-                            style={{ transform: 'scaleX(-1)' }}
-                        />
-
-                        {/* Pose Detection Overlay */}
-                        <canvas
-                            ref={canvasRef}
-                            className={cn(
-                                "absolute inset-0 w-full h-full object-cover pointer-events-none",
-                                transformedVideoUrl ? 'opacity-30' : 'opacity-100'
-                            )}
-                            style={{ transform: 'scaleX(-1)' }}
-                        />
-
-                        {/* Transformed Video Overlay */}
-                        {transformedVideoUrl && (
+                    <div className="flex-1 relative flex">
+                        {/* Local Video (Camera) */}
+                        <div className={cn(
+                            "relative transition-all duration-300",
+                            isEditingActive ? "w-1/3 opacity-60" : "w-full"
+                        )}>
                             <video
-                                ref={overlayVideoRef}
-                                className="absolute inset-0 w-full h-full object-cover"
+                                ref={localVideoRef}
+                                className="w-full h-full object-cover"
                                 playsInline
-                                loop
                                 muted
                                 autoPlay
-                                style={{ transform: 'scaleX(-1)', mixBlendMode: 'normal' }}
+                                style={{ transform: 'scaleX(-1)' }}
                             />
+                            {!isEditingActive && (
+                                <div className="absolute bottom-4 left-4 text-white/60 text-sm">
+                                    Original
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Remote Video (Edited) */}
+                        {isEditingActive && (
+                            <div className="w-2/3 relative">
+                                <video
+                                    ref={remoteVideoRef}
+                                    className="w-full h-full object-cover"
+                                    playsInline
+                                    autoPlay
+                                    style={{ transform: 'scaleX(-1)' }}
+                                />
+                                <div className="absolute bottom-4 left-4 text-gold-400 text-sm flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4" />
+                                    AI Transformed
+                                </div>
+                            </div>
                         )}
 
-                        {/* Loading Indicator */}
-                        {status === 'processing' && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                                <div className="flex flex-col items-center gap-4">
-                                    <Loader2 className="w-12 h-12 text-gold-400 animate-spin" />
-                                    <span className="text-white text-lg">Processing with AI...</span>
-                                </div>
+                        {/* Connection Overlay */}
+                        {connectionState !== 'connected' && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+                                {connectionState === 'connecting' ? (
+                                    <div className="flex flex-col items-center gap-4">
+                                        <Loader2 className="w-12 h-12 text-gold-400 animate-spin" />
+                                        <span className="text-white text-lg">Connecting to AI...</span>
+                                    </div>
+                                ) : (
+                                    <Button onClick={connect} className="gap-2">
+                                        <Video className="w-5 h-5" />
+                                        Connect Camera
+                                    </Button>
+                                )}
                             </div>
                         )}
 
                         {/* Error Message */}
                         {error && (
-                            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-red-500/90 text-white px-6 py-3 rounded-lg">
+                            <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-6 py-3 rounded-lg">
                                 {error}
-                            </div>
-                        )}
-
-                        {/* Camera Off State */}
-                        {!isActive && !isLoading && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
-                                <Button onClick={startCamera} className="gap-2">
-                                    <Video className="w-5 h-5" />
-                                    Start Camera
-                                </Button>
                             </div>
                         )}
                     </div>
 
                     {/* Clothing Selector Sidebar */}
-                    <div className="w-80 bg-black/80 p-4 flex flex-col gap-4">
+                    <div className="w-80 bg-black/80 p-4 flex flex-col gap-4 border-l border-white/10">
                         {/* Selected Item */}
                         {selectedItem && (
                             <div className="bg-white/10 rounded-lg p-4">
                                 <img
                                     src={selectedItem.image}
                                     alt={selectedItem.name}
-                                    className="w-full h-48 object-contain rounded-lg mb-3"
+                                    className="w-full h-48 object-contain rounded-lg mb-3 bg-white/5"
                                 />
                                 <h3 className="text-white font-semibold">{selectedItem.name}</h3>
                                 <p className="text-gold-400 font-bold">₹{selectedItem.price}</p>
@@ -485,13 +445,18 @@ export function LiveVTON({ isOpen, onClose, clothing, onAddToCart }: LiveVTONPro
                         <div className="space-y-2">
                             <label className="text-gray-400 text-sm">Style Mode</label>
                             <div className="flex gap-2">
-                                {(['realistic', 'anime', 'artistic'] as const).map((style) => (
+                                {(['realistic', 'anime', 'cyberpunk'] as const).map((style) => (
                                     <Button
                                         key={style}
                                         variant={styleMode === style ? 'default' : 'outline'}
                                         size="sm"
-                                        onClick={() => setStyleMode(style)}
-                                        className="flex-1 capitalize"
+                                        onClick={() => {
+                                            setStyleMode(style);
+                                            if (isEditingActive) {
+                                                setTimeout(() => applyClothing(), 100);
+                                            }
+                                        }}
+                                        className="flex-1 capitalize text-xs"
                                     >
                                         {style}
                                     </Button>
@@ -512,25 +477,32 @@ export function LiveVTON({ isOpen, onClose, clothing, onAddToCart }: LiveVTONPro
                             </Button>
                         </div>
 
+                        {/* Current Prompt */}
+                        {isEditingActive && currentPrompt && (
+                            <div className="p-3 bg-gold-500/10 rounded-lg border border-gold-500/30">
+                                <p className="text-gold-400 text-xs line-clamp-3">{currentPrompt}</p>
+                            </div>
+                        )}
+
                         {/* Actions */}
                         <div className="flex flex-col gap-2 mt-auto">
-                            {status === 'idle' || status === 'ready' ? (
+                            {!isEditingActive ? (
                                 <Button
-                                    onClick={startRecording}
-                                    disabled={!poseDetected || !isActive}
+                                    onClick={applyClothing}
+                                    disabled={connectionState !== 'connected'}
                                     className="w-full gap-2 bg-gradient-to-r from-gold-500 to-gold-600"
                                 >
                                     <Wand2 className="w-5 h-5" />
-                                    Transform with AI
+                                    Try On Live
                                 </Button>
                             ) : (
                                 <Button
-                                    onClick={stopRecording}
-                                    variant="destructive"
+                                    onClick={stopEditing}
+                                    variant="outline"
                                     className="w-full gap-2"
                                 >
-                                    <Pause className="w-5 h-5" />
-                                    Stop Recording
+                                    <VideoOff className="w-5 h-5" />
+                                    Show Original
                                 </Button>
                             )}
 
@@ -549,19 +521,13 @@ export function LiveVTON({ isOpen, onClose, clothing, onAddToCart }: LiveVTONPro
                 </div>
 
                 {/* Status Bar */}
-                <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-                    <div className="flex items-center justify-center gap-4 text-sm text-gray-400">
-                        <span className={cn(
-                            "flex items-center gap-2",
-                            isActive ? "text-green-400" : "text-gray-500"
-                        )}>
-                            {isActive ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
-                            Camera {isActive ? 'Active' : 'Inactive'}
-                        </span>
+                <div className="absolute bottom-0 left-0 right-0 p-2 bg-black/80 border-t border-white/10">
+                    <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
+                        <span>Model: {DECART_MODEL}</span>
                         <span>•</span>
-                        <span>Status: {status.charAt(0).toUpperCase() + status.slice(1)}</span>
+                        <span>{VIDEO_CONFIG.width}x{VIDEO_CONFIG.height}@{VIDEO_CONFIG.frameRate}fps</span>
                         <span>•</span>
-                        <span>Powered by Decart AI</span>
+                        <span>Powered by Decart AI WebRTC</span>
                     </div>
                 </div>
             </motion.div>
