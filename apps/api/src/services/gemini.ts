@@ -6,8 +6,8 @@
  * PIPELINE 1: PART Mode (Semantic Inpainting)
  * - Uses Gemini's native Reference Image Injection for natural blending
  * - AI handles lighting/color grading to match room lighting
- * - CONDITIONAL face restoration: only if face similarity < 85% (corruption detected)
- * - No "Sticker Effect" - natural lighting integration
+ * - NO post-processing - AI result used directly to avoid sticker effect
+ * - Face preservation relies entirely on Gemini's Reference Image capability
  *
  * PIPELINE 2: FULL_FIT Mode (Subject Consistency Generation)
  * - Uses Subject Consistency pattern for identity lock
@@ -511,38 +511,14 @@ export async function generateTryOnImage(
         console.warn('[Gemini] Inpainting validation failed after retries');
       }
 
-      // CONDITIONAL Face Restoration: Only if face is SEVERELY corrupted
-      // Trust Gemini's Reference Image Injection for natural lighting/blending
-      // Using a LOW threshold (0.5) to avoid sticker effect from unnecessary restoration
-      // Face restoration should ONLY happen when AI completely changes the face
-      const FACE_CORRUPTION_THRESHOLD = 0.50; // Very low - only restore for severe corruption
+      // PART MODE: COMPLETELY DISABLE face restoration
+      // Trust Gemini's Reference Image Injection to handle everything
+      // ANY post-processing creates the "sticker effect" with hard edges
+      // The AI naturally blends lighting - we must NOT override it
+      console.log('[Gemini] PART mode: Using AI result directly - NO face restoration');
+      processingSteps.push('AI output (no post-processing)');
 
-      console.log('[Gemini] PART mode: Checking face integrity...');
-      processingSteps.push('Face integrity check');
-
-      const isFaceCorrupted = await detectFaceCorruption(
-        selfieBase64,
-        resultImage,
-        segmentation,
-        FACE_CORRUPTION_THRESHOLD
-      );
-
-      if (isFaceCorrupted) {
-        console.log('[Gemini] Face corruption detected in AI output, applying restoration...');
-        processingSteps.push('Face restoration (conditional)');
-
-        const postResult = await restoreIdentity(
-          selfieBase64,
-          resultImage,
-          segmentation,
-          { minSimilarityThreshold: FACE_CORRUPTION_THRESHOLD, enableColorCorrection: true }
-        );
-        resultImage = postResult.imageBase64;
-        console.log(`[Gemini] Face restored with ${(postResult.faceSimilarity * 100).toFixed(1)}% similarity`);
-      } else {
-        console.log('[Gemini] AI preserved face correctly - no restoration needed (eliminates sticker effect)');
-        processingSteps.push('Face preserved by AI');
-      }
+      // resultImage is used directly without any modification
 
     } else {
       // ─────────────────────────────────────────────────────────────────────
