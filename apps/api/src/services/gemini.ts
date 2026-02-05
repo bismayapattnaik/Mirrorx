@@ -157,26 +157,33 @@ async function generateWithInpainting(
 
   const person = gender === 'female' ? 'woman' : 'man';
 
-  // Reference Image Injection prompt - let Gemini handle lighting/blending
-  const inpaintingPrompt = `VIRTUAL TRY-ON TASK using Reference Image Injection:
+  // Reference Image Injection prompt with strong identity preservation
+  const inpaintingPrompt = `VIRTUAL TRY-ON with IDENTITY LOCK:
 
-INPUT 1 (Canvas): Photo of a ${person} - this is the BASE image to edit.
-INPUT 2 (Reference): A garment - this is the clothing to apply.
+You are editing INPUT 1 (person photo) to wear the garment from INPUT 2.
 
-YOUR TASK:
-Replace the current top/clothing in INPUT 1 with the garment from INPUT 2.
+IDENTITY PRESERVATION (CRITICAL):
+- The person's FACE must remain EXACTLY as in INPUT 1
+- Same facial features: eyes, nose, mouth, jawline, eyebrows
+- Same skin tone and complexion
+- Same facial expression
+- Same head position and angle
+- Hair must remain unchanged
 
-CRITICAL REQUIREMENTS:
-1. FACE: Keep 100% unchanged - same pixels, same lighting
-2. LIGHTING: Match the garment's lighting to the room lighting in INPUT 1
-3. NECK SEAM: Blend naturally where skin meets fabric - NO visible edges
-4. COLOR GRADING: Adjust garment white balance to match the selfie's warm/cool tone
-5. SHADOWS: Generate realistic fabric shadows based on the light source direction
-6. FIT: Natural draping on ${profile?.body.build || 'their'} body type
+GARMENT APPLICATION:
+- Replace ONLY the clothing/top with the garment from INPUT 2
+- Keep the original body proportions from INPUT 1
+- Natural fit for ${profile?.body.build || 'their'} body type
 
-The output should look like a REAL photo, not a composite.
+REALISTIC INTEGRATION:
+- Match garment lighting to INPUT 1's ambient light
+- Natural neck-to-collar transition (no hard edges)
+- Realistic fabric shadows and folds
+- Color temperature should match the original photo
 
-Generate the try-on image now.`;
+OUTPUT: A photorealistic image of the SAME PERSON from INPUT 1, wearing the garment from INPUT 2. The face must be identical - if you showed this to someone who knows the person, they should immediately recognize them.
+
+Generate the image.`;
 
   const response = await client.models.generateContent({
     model: IMAGE_MODEL,
