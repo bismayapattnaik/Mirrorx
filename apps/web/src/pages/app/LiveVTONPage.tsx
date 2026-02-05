@@ -12,8 +12,18 @@ import { Button } from '@/components/ui/button';
 import LiveVTON from '@/components/LiveVTON';
 import { useAuthStore } from '@/store/auth-store';
 
+// Clothing item type that matches LiveVTON component
+interface ClothingItem {
+    id: string;
+    name: string;
+    image: string;
+    category: string;
+    price: number;
+    description?: string;
+}
+
 // Demo clothing items for testing
-const DEMO_CLOTHING = [
+const DEMO_CLOTHING: ClothingItem[] = [
     {
         id: '1',
         name: 'Classic Navy Blazer',
@@ -60,7 +70,7 @@ export default function LiveVTONPage() {
     const navigate = useNavigate();
     const { isAuthenticated } = useAuthStore();
     const [isOpen, setIsOpen] = useState(false);
-    const [clothing] = useState(DEMO_CLOTHING);
+    const [clothing] = useState<ClothingItem[]>(DEMO_CLOTHING);
 
     // Auto-open if user is authenticated
     useEffect(() => {
@@ -69,7 +79,7 @@ export default function LiveVTONPage() {
         }
     }, [isAuthenticated]);
 
-    const handleAddToCart = (item: typeof DEMO_CLOTHING[0]) => {
+    const handleAddToCart = (item: ClothingItem) => {
         console.log('Added to cart:', item);
         // TODO: Integrate with cart store
     };
