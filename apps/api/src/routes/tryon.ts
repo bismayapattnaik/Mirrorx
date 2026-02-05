@@ -428,7 +428,7 @@ router.post(
         `UPDATE tryon_jobs SET status = 'FAILED', error_message = $1, completed_at = NOW()
          WHERE id = $2`,
         [(error as Error).message, jobId]
-      ).catch(() => {});
+      ).catch(() => { });
 
       res.status(500).json({
         error: 'Server error',
@@ -918,5 +918,178 @@ router.post(
     }
   }
 );
+
+// ==========================================
+// VIDEO TRY-ON (Decart AI)
+// ==========================================
+
+import decart from '../services/decart.js';
+
+// Configure multer for video uploads
+const videoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 300 * 1024 * 1024, // 300MB for videos
+  },
+  fileFilter: (_req, file, cb) => {
+    const allowedTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only MP4, WebM, and MOV are allowed.'));
+    }
+  },
+});
+
+// POST /tryon/video - Submit video try-on job
+router.post(
+  '/video',
+  authenticate,
+  videoUpload.fields([
+    { name: 'video', maxCount: 1 },
+    { name: 'garment_image', maxCount: 1 },
+  ]),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      const videoFile = files['video']?.[0];
+      const garmentFile = files['garment_image']?.[0];
+      const { gender = 'female', fast = false, garment_base64 } = req.body;
+
+      if (!videoFile) {
+        return res.status(400).json({
+          error: 'Missing video',
+          message: 'Video file is required',
+        });
+      }
+
+      // Get garment image
+      let garmentBase64: string;
+      if (garmentFile) {
+        garmentBase64 = await processImage(garmentFile.buffer);
+      } else if (garment_base64) {
+        garmentBase64 = garment_base64;
+      } else {
+        return res.status(400).json({
+          error: 'Missing garment',
+          message: 'Garment image is required',
+        });
+      }
+
+      // Submit video job to Decart
+      const { jobId } = await decart.submitVideoTryOn(
+        videoFile.buffer,
+        garmentBase64,
+        {
+          fast: fast === 'true' || fast === true,
+          gender: gender === 'male' ? 'male' : 'female',
+        }
+      );
+
+      res.json({
+        job_id: jobId,
+        status: 'pending',
+        message: 'Video try-on job submitted. Poll /tryon/video/:jobId for status.',
+      });
+    } catch (error) {
+      console.error('Video try-on error:', error);
+      res.status(500).json({
+        error: 'Server error',
+        message: (error as Error).message || 'Failed to submit video job',
+      });
+    }
+  }
+);
+
+// GET /tryon/video/:jobId - Get video try-on job status
+router.get('/video/:jobId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { jobId } = req.params;
+    const status = await decart.getVideoJobStatus(jobId);
+
+    res.json(status);
+  } catch (error) {
+    console.error('Video job status error:', error);
+    res.status(500).json({
+      error: 'Server error',
+      message: 'Failed to get job status',
+    });
+  }
+});
+
+// GET /tryon/video/:jobId/download - Download completed video
+router.get('/video/:jobId/download', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { jobId } = req.params;
+
+    // Check job status first
+    const status = await decart.getVideoJobStatus(jobId);
+    if (status.status !== 'completed') {
+      return res.status(400).json({
+        error: 'Not ready',
+        message: `Video job is ${status.status}. Please wait until completed.`,
+      });
+    }
+
+    // Download and stream video
+    const videoBuffer = await decart.downloadVideo(jobId);
+
+    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Content-Disposition', `attachment; filename="tryon-${jobId}.mp4"`);
+    res.send(videoBuffer);
+  } catch (error) {
+    console.error('Video download error:', error);
+    res.status(500).json({
+      error: 'Server error',
+      message: 'Failed to download video',
+    });
+  }
+});
+
+// ==========================================
+// LIVE VIDEO TRY-ON (WebRTC)
+// ==========================================
+
+// GET /tryon/live/config - Get WebRTC config for live video
+router.get('/live/config', authenticate, async (_req: AuthRequest, res: Response) => {
+  try {
+    const config = await decart.getRealtimeConfig();
+
+    res.json({
+      ...config,
+      instructions: 'Connect to serverUrl via WebRTC using the sessionToken for authentication.',
+      supported_models: [
+        { id: 'lucy_v2v_720p_rt', name: 'Video Editing (25 fps)', description: 'Real-time video restyling' },
+        { id: 'lucy_2_rt', name: 'With Character Reference (20 fps)', description: 'Video editing with character reference' },
+        { id: 'mirage', name: 'Mirage (25 fps)', description: 'Video restyling' },
+        { id: 'live_avatar', name: 'Live Avatar (25 fps)', description: 'Avatar animation with audio' },
+      ],
+    });
+  } catch (error) {
+    console.error('Live config error:', error);
+    res.status(500).json({
+      error: 'Server error',
+      message: 'Failed to get live video config',
+    });
+  }
+});
+
+// Health check for Decart AI
+router.get('/decart/health', async (_req, res: Response) => {
+  try {
+    const isHealthy = await decart.healthCheck();
+    res.json({
+      status: isHealthy ? 'healthy' : 'unhealthy',
+      service: 'decart',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      service: 'decart',
+      message: (error as Error).message,
+    });
+  }
+});
 
 export default router;
