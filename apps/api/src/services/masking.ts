@@ -503,7 +503,8 @@ Return ONLY the JSON object.`;
       .png({ quality: 100 })
       .toBuffer();
 
-    // Create alpha mask for the face (elliptical with feathered edges)
+    // Create alpha mask for the face (elliptical with HEAVILY feathered edges)
+    // Using very gradual falloff to eliminate "sticker effect" hard edges
     const cropWidth = Math.round(faceW);
     const cropHeight = Math.round(faceH);
 
@@ -512,14 +513,17 @@ Return ONLY the JSON object.`;
         <defs>
           <radialGradient id="alphaGrad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
             <stop offset="0%" stop-color="white" stop-opacity="1"/>
-            <stop offset="65%" stop-color="white" stop-opacity="1"/>
-            <stop offset="85%" stop-color="white" stop-opacity="0.7"/>
-            <stop offset="95%" stop-color="white" stop-opacity="0.3"/>
+            <stop offset="40%" stop-color="white" stop-opacity="1"/>
+            <stop offset="55%" stop-color="white" stop-opacity="0.9"/>
+            <stop offset="65%" stop-color="white" stop-opacity="0.7"/>
+            <stop offset="75%" stop-color="white" stop-opacity="0.4"/>
+            <stop offset="85%" stop-color="white" stop-opacity="0.15"/>
+            <stop offset="95%" stop-color="white" stop-opacity="0.05"/>
             <stop offset="100%" stop-color="white" stop-opacity="0"/>
           </radialGradient>
         </defs>
         <ellipse cx="${cropWidth / 2}" cy="${cropHeight / 2}"
-                 rx="${cropWidth * 0.48}" ry="${cropHeight * 0.48}"
+                 rx="${cropWidth * 0.45}" ry="${cropHeight * 0.45}"
                  fill="url(#alphaGrad)"/>
       </svg>
     `;
