@@ -563,37 +563,41 @@ export async function generateTryOnImage(
         generatedImage = await generateFallbackPose(selfieBase64, productBase64, gender);
       }
 
-      // Step B: MANDATORY Identity Guardrail
-      console.log('[Gemini] Applying Identity Guardrail...');
-      processingSteps.push('Identity guardrail');
-
-      const postResult = await restoreIdentity(
+      // Step B: CONDITIONAL Identity Guardrail (only if face is corrupted)
+      // This eliminates the "sticker effect" from mandatory hard compositing
+      const isFaceCorrupted = await detectFaceCorruption(
         selfieBase64,
         generatedImage,
         segmentation,
-        {
-          minSimilarityThreshold: 0.88,
-          enableColorCorrection: true,
-          enableValidation: true,
-        }
+        0.60 // Lower threshold - only restore if SEVERELY corrupted
       );
 
-      resultImage = postResult.imageBase64;
+      if (isFaceCorrupted) {
+        console.log('[Gemini] FULL_FIT: Face corruption detected, applying restoration...');
+        processingSteps.push('Face restoration (conditional)');
 
-      console.log('[Gemini] Identity guardrail result:', {
-        faceOverlaid: postResult.faceOverlaid,
-        similarity: `${(postResult.faceSimilarity * 100).toFixed(1)}%`,
-        method: postResult.method,
-      });
+        const postResult = await restoreIdentity(
+          selfieBase64,
+          generatedImage,
+          segmentation,
+          {
+            minSimilarityThreshold: 0.85,
+            enableColorCorrection: true,
+            enableValidation: true,
+          }
+        );
 
-      // Final validation
-      if (!postResult.validationPassed && postResult.faceSimilarity < 0.85) {
-        console.warn('[Gemini] Identity guardrail did not achieve target similarity');
-        processingSteps.push('Direct face copy (fallback)');
+        resultImage = postResult.imageBase64;
 
-        // Use direct face copy as last resort
-        const guard = new IdentityGuard();
-        resultImage = await guard['directFaceCopy'](selfieBase64, resultImage, segmentation);
+        console.log('[Gemini] Identity guardrail result:', {
+          faceOverlaid: postResult.faceOverlaid,
+          similarity: `${(postResult.faceSimilarity * 100).toFixed(1)}%`,
+          method: postResult.method,
+        });
+      } else {
+        console.log('[Gemini] FULL_FIT: AI preserved face - no restoration needed (eliminates sticker effect)');
+        processingSteps.push('Face preserved by AI');
+        resultImage = generatedImage;
       }
     }
 
