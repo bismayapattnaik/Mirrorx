@@ -532,7 +532,12 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
                         {/* Connection Overlay */}
                         {connectionState !== 'connected' && (
                             <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-                                {connectionState === 'connecting' ? (
+                                {isConfigLoading ? (
+                                    <div className="flex flex-col items-center gap-4">
+                                        <Loader2 className="w-16 h-16 text-blue-400 animate-spin" />
+                                        <span className="text-white text-xl">Initializing...</span>
+                                    </div>
+                                ) : connectionState === 'connecting' ? (
                                     <div className="flex flex-col items-center gap-4">
                                         <Loader2 className="w-16 h-16 text-gold-400 animate-spin" />
                                         <span className="text-white text-xl">Connecting to AI...</span>
