@@ -67,16 +67,16 @@ interface LiveVTONProps {
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
 
-// Decart Realtime API settings - Using MirageLSD 2.0
+// Decart Realtime API settings - Using Lucy 2 RT for face preservation
 const DECART_WS_URL = 'wss://api3.decart.ai/v1/stream';
-const DECART_MODEL = 'mirage_v2'; // MirageLSD 2.0 for realistic style transfer
+const DECART_MODEL = 'lucy_2_rt'; // Lucy 2 RT with character reference for 100% face preservation
 const API_KEY = import.meta.env.VITE_DECART_API_KEY || '';
 
-// Model specifications for mirage_v2
+// Model specifications for lucy_2_rt
 const MODEL_SPECS = {
     width: 1280,
-    height: 720,
-    fps: 30,
+    height: 704,
+    fps: 25,
 };
 
 export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
@@ -103,7 +103,7 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
         ? { id: 'uploaded', name: 'Your Clothing', image: uploadedImage, description: 'User uploaded clothing', price: 0 }
         : DEMO_CLOTHING[selectedIndex];
 
-    // Generate try-on prompt
+    // Generate try-on prompt with identity preservation
     const generateTryOnPrompt = useCallback((description: string, style: string) => {
         const stylePrefix = style === 'anime'
             ? 'Anime style, '
@@ -111,7 +111,8 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
                 ? 'Cyberpunk aesthetic with neon lighting, '
                 : '';
 
-        return `${stylePrefix}Transform the person to wear: ${description}. Keep their face identity exactly the same. Photorealistic quality with accurate lighting, natural fabric textures, proper shadows, and realistic draping. The clothing should look naturally worn.`;
+        // Lucy 2 RT specific prompt for identity preservation
+        return `${stylePrefix}Change ONLY the clothing to: ${description}. CRITICAL: Keep the person's face, skin tone, hair, body shape, and all physical features EXACTLY the same - 100% identity preservation. Only modify the clothing/outfit area. Photorealistic fabric textures, natural draping, accurate lighting.`;
     }, []);
 
     // Handle image upload
@@ -138,12 +139,12 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
     // Navigate demo clothing
     const nextClothing = () => {
         setUploadedImage(null); // Clear uploaded image when browsing demos
-        setSelectedIndex((prev) => (prev + 1) % DEMO_CLOTHING.length);
+        setSelectedIndex((prev: number) => (prev + 1) % DEMO_CLOTHING.length);
     };
 
     const prevClothing = () => {
         setUploadedImage(null);
-        setSelectedIndex((prev) => (prev - 1 + DEMO_CLOTHING.length) % DEMO_CLOTHING.length);
+        setSelectedIndex((prev: number) => (prev - 1 + DEMO_CLOTHING.length) % DEMO_CLOTHING.length);
     };
 
     // Connect to Decart WebRTC
@@ -598,7 +599,7 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
                 {/* Status Bar */}
                 <div className="absolute bottom-0 left-0 right-0 p-3 bg-black border-t border-white/10">
                     <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
-                        <span>Model: MirageLSD 2.0</span>
+                        <span>Model: Lucy 2 RT (Face Preserved)</span>
                         <span>•</span>
                         <span>{MODEL_SPECS.width}x{MODEL_SPECS.height}@{MODEL_SPECS.fps}fps</span>
                         <span>•</span>
