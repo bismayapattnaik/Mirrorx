@@ -45,6 +45,9 @@ import BBAClothsDemo from '@/pages/demo/BBAClothsDemo';
 // 3D Mirror
 import Mirror3DPage from '@/pages/app/Mirror3DPage';
 
+// Live VTON (WebRTC)
+import LiveVTONPage from '@/pages/app/LiveVTONPage';
+
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -175,6 +178,17 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Mirror3DPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Live VTON (WebRTC streaming) */}
+        <Route path="/live-tryon" element={<LiveVTONPage />} />
+        <Route
+          path="/app/live-tryon"
+          element={
+            <ProtectedRoute>
+              <LiveVTONPage />
             </ProtectedRoute>
           }
         />
