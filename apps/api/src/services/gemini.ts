@@ -511,10 +511,11 @@ export async function generateTryOnImage(
         console.warn('[Gemini] Inpainting validation failed after retries');
       }
 
-      // CONDITIONAL Face Restoration: Only if face is corrupted
+      // CONDITIONAL Face Restoration: Only if face is SEVERELY corrupted
       // Trust Gemini's Reference Image Injection for natural lighting/blending
-      // This eliminates the "sticker effect" from hard compositing
-      const FACE_CORRUPTION_THRESHOLD = 0.85; // Below this = face is corrupted
+      // Using a LOW threshold (0.5) to avoid sticker effect from unnecessary restoration
+      // Face restoration should ONLY happen when AI completely changes the face
+      const FACE_CORRUPTION_THRESHOLD = 0.50; // Very low - only restore for severe corruption
 
       console.log('[Gemini] PART mode: Checking face integrity...');
       processingSteps.push('Face integrity check');
