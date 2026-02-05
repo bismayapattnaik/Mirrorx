@@ -67,9 +67,13 @@ export async function generateTryOn(
         const garmentBuffer = Buffer.from(cleanGarment, 'base64');
 
         const person = options?.gender === 'female' ? 'woman' : 'man';
-        const prompt = `Virtual try-on: Make this ${person} wear the clothing from the reference image. 
-Keep the exact face, body shape, and skin tone. Only change the clothing.
-Natural lighting, photorealistic quality, no artifacts.`;
+        const prompt = `(photorealistic:1.4), (highest quality:1.2). A photo of a ${person} wearing the clothing from the reference image.
+CRITICAL: The output must be a single, seamless photo of the person.
+1. FACE PRESERVATION: Keep the person's face, hair, and head feature EXACTLY 100% identical to the input selfie.
+2. CLOTHING: Replace the original outfit with the reference clothing utilizing realistic fabric physics and draping.
+3. COMPOSITION: Do NOT show a split screen. Do NOT show the reference garment floating. Do NOT make a collage. Do NOT put the person in a circle or vignette.
+4. LIGHTING: Use natural, cinematic lighting that matches the original selfie.
+5. NO ARTIFACTS: Ensure no white borders, no sticker outlines, no cartoon effects.`;
 
         // Create combined reference image
         const combinedImage = await createReferenceImage(selfieBuffer, garmentBuffer);
@@ -78,7 +82,8 @@ Natural lighting, photorealistic quality, no artifacts.`;
         const formData = new FormData();
         formData.append('data', new Blob([combinedImage], { type: 'image/jpeg' }), 'input.jpg');
         formData.append('prompt', prompt);
-        formData.append('enhance_prompt', String(options?.enhancePrompt ?? true));
+        // CRITICAL: Disable prompt enhancement to prevent model from overriding our strict instructions
+        formData.append('enhance_prompt', 'false');
 
         // Submit job
         const submitResponse = await fetch(`${DECART_API_BASE}/generate/${MODELS.IMAGE_TO_IMAGE}`, {
