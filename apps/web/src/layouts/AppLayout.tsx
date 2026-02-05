@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Users,
   Store,
+  Camera,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth-store';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { path: '/app/tryon', label: 'Try On', icon: Sparkles },
+  { path: '/app/live-tryon', label: 'Live', icon: Camera },
   { path: '/app/wardrobe', label: 'Wardrobe', icon: Shirt },
   { path: '/app/feed', label: 'Shop Together', icon: Users },
   { path: '/store', label: 'Store', icon: Store },
