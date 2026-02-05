@@ -1,21 +1,21 @@
 /**
  * @fileoverview Commercial-Grade Virtual Try-On Service using Gemini 3 Pro
  *
- * TWO-PIPELINE ARCHITECTURE for 100% Face Identity Preservation:
+ * TWO-PIPELINE ARCHITECTURE with Reference Image Injection:
  *
- * PIPELINE 1: PART Mode (Half-Body Inpainting)
- * - Uses face mask to protect face region
- * - Inpainting request: "Edit ONLY the masked (white) body area"
- * - Face is PHYSICALLY UNTOUCHED by AI
- * - HARD LOCK: Always restore identity after generation
+ * PIPELINE 1: PART Mode (Semantic Inpainting)
+ * - Uses Gemini's native Reference Image Injection for natural blending
+ * - AI handles lighting/color grading to match room lighting
+ * - CONDITIONAL face restoration: only if face similarity < 85% (corruption detected)
+ * - No "Sticker Effect" - natural lighting integration
  *
- * PIPELINE 2: FULL_FIT Mode (Generation + Identity Guardrail)
- * - Uses Reference Image Injection (up to 2 images)
- * - Step A: Generate full body with outfit
- * - Step B: Mandatory face overlay from original
+ * PIPELINE 2: FULL_FIT Mode (Subject Consistency Generation)
+ * - Uses Subject Consistency pattern for identity lock
+ * - Reference A: Face/Identity | Reference B: Garment/Style
+ * - Mandatory identity guardrail post-generation
  * - Face is GUARANTEED to match original
  *
- * This architecture ensures the user's face is NEVER modified.
+ * This architecture prioritizes natural-looking results while preserving identity.
  */
 
 import { GoogleGenAI } from '@google/genai';
@@ -156,15 +156,24 @@ async function generateWithInpainting(
 
   const person = gender === 'female' ? 'woman' : 'man';
 
-  // Simple, direct prompt for PART mode virtual try-on
-  const inpaintingPrompt = `Using the provided image of the ${person}, change ONLY the clothing to match the provided garment image.
+  // Reference Image Injection prompt - let Gemini handle lighting/blending
+  const inpaintingPrompt = `VIRTUAL TRY-ON TASK using Reference Image Injection:
 
-CRITICAL RULES:
-- Keep the face, hair, and background EXACTLY the same
-- Only change the clothing/top garment
-- Natural fit on ${profile?.body.build || 'their'} body type
-- Maintain realistic lighting and shadows
-- Photorealistic quality output
+INPUT 1 (Canvas): Photo of a ${person} - this is the BASE image to edit.
+INPUT 2 (Reference): A garment - this is the clothing to apply.
+
+YOUR TASK:
+Replace the current top/clothing in INPUT 1 with the garment from INPUT 2.
+
+CRITICAL REQUIREMENTS:
+1. FACE: Keep 100% unchanged - same pixels, same lighting
+2. LIGHTING: Match the garment's lighting to the room lighting in INPUT 1
+3. NECK SEAM: Blend naturally where skin meets fabric - NO visible edges
+4. COLOR GRADING: Adjust garment white balance to match the selfie's warm/cool tone
+5. SHADOWS: Generate realistic fabric shadows based on the light source direction
+6. FIT: Natural draping on ${profile?.body.build || 'their'} body type
+
+The output should look like a REAL photo, not a composite.
 
 Generate the try-on image now.`;
 
@@ -255,19 +264,30 @@ async function generateFullBody(
 
   const person = gender === 'female' ? 'woman' : 'man';
 
-  // Simplified prompt for reference image injection
-  const fullBodyPrompt = `Generate a full-body fashion photo of this ${person} wearing the provided garment.
+  // Subject Consistency pattern - strong identity anchoring
+  const fullBodyPrompt = `SUBJECT CONSISTENCY TASK for Fashion Photography:
 
-REFERENCE 1 (Face): Use this person's exact face, skin tone, and features.
-REFERENCE 2 (Clothes): Apply this garment as the main clothing item.
+Generate a high-fashion full-body shot using these EXACT references:
 
-REQUIREMENTS:
-- Full body shot (head to feet)
-- Face must look EXACTLY like Reference 1
-- Body proportions: ${profile?.body.build || 'natural'}
-- Natural standing fashion pose
-- Professional fashion photography aesthetic
-- Add complementary items to complete the outfit
+REFERENCE IMAGE A (Identity Lock):
+- This is the SUBJECT PERSON whose identity MUST be preserved
+- Use their EXACT face: same bone structure, eyes, nose, lips, jawline
+- Match their skin tone precisely across all visible skin
+- Body type: ${profile?.body.build || 'natural proportions'}
+
+REFERENCE IMAGE B (Style Reference):
+- This is the GARMENT to dress the subject in
+- Apply this clothing as the main outfit piece
+
+OUTPUT REQUIREMENTS:
+1. IDENTITY: The face must be MATHEMATICALLY identical to Reference A
+2. LIGHTING: Professional studio lighting (soft key light, fill, rim)
+3. POSE: Full body (head to feet), natural fashion stance
+4. FRAMING: 3:4 portrait aspect ratio, fashion editorial style
+5. QUALITY: 2K resolution, no artifacts, photorealistic
+6. OUTFIT: Complete the look with complementary items that match the garment style
+
+The output should look like a professional fashion lookbook photo of THIS SPECIFIC PERSON.
 
 Generate the image now.`;
 
@@ -490,28 +510,42 @@ export async function generateTryOnImage(
         console.warn('[Gemini] Inpainting validation failed after retries');
       }
 
-      // HARD LOCK: ALWAYS apply face restoration in PART mode
-      // We do NOT trust the diffusion model to preserve pixels perfectly
-      // The original face must be physically stamped back onto the result
-      console.log('[Gemini] PART mode: Forcing mandatory face overlay for 100% identity preservation...');
-      processingSteps.push('Face overlay (mandatory)');
+      // CONDITIONAL Face Restoration: Only if face is corrupted
+      // Trust Gemini's Reference Image Injection for natural lighting/blending
+      // Only apply hard restoration if face similarity drops below threshold
+      const FACE_CORRUPTION_THRESHOLD = 0.85; // Below this = face is corrupted
 
-      const postResult = await restoreIdentity(
-        selfieBase64,
-        resultImage,
-        segmentation,
-        { minSimilarityThreshold: 0.0 } // Force overwrite regardless of similarity
-      );
-      resultImage = postResult.imageBase64;
+      console.log('[Gemini] PART mode: Checking face integrity...');
+      processingSteps.push('Face integrity check');
 
-      // Log final similarity for debugging
-      const identityGuard = new IdentityGuard({ minSimilarityThreshold: 0.0 });
-      const finalSimilarity = await identityGuard.calculateFaceSimilarity(
+      const identityGuard = new IdentityGuard({ minSimilarityThreshold: FACE_CORRUPTION_THRESHOLD });
+      const faceSimilarity = await identityGuard.calculateFaceSimilarity(
         selfieBase64,
         resultImage,
         segmentation
       );
-      console.log(`[Gemini] Face similarity after forced overlay: ${(finalSimilarity * 100).toFixed(1)}%`);
+
+      console.log(`[Gemini] Face similarity: ${(faceSimilarity * 100).toFixed(1)}%`);
+
+      if (faceSimilarity < FACE_CORRUPTION_THRESHOLD) {
+        // Face is corrupted - apply restoration
+        console.log(`[Gemini] Face corruption detected (${(faceSimilarity * 100).toFixed(1)}% < ${(FACE_CORRUPTION_THRESHOLD * 100).toFixed(0)}%). Applying face restoration...`);
+        processingSteps.push('Face restoration (corruption fix)');
+
+        const postResult = await restoreIdentity(
+          selfieBase64,
+          resultImage,
+          segmentation,
+          { minSimilarityThreshold: FACE_CORRUPTION_THRESHOLD }
+        );
+        resultImage = postResult.imageBase64;
+
+        console.log(`[Gemini] Face similarity after restoration: ${(postResult.faceSimilarity * 100).toFixed(1)}%`);
+      } else {
+        // Face is intact - trust the model's output for natural lighting
+        console.log(`[Gemini] Face intact (${(faceSimilarity * 100).toFixed(1)}% >= ${(FACE_CORRUPTION_THRESHOLD * 100).toFixed(0)}%). Skipping hard paste to preserve natural lighting.`);
+        processingSteps.push('Face preserved (natural)');
+      }
 
     } else {
       // ─────────────────────────────────────────────────────────────────────
