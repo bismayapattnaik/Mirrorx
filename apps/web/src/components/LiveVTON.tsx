@@ -1,8 +1,11 @@
 /**
- * @fileoverview Live Virtual Try-On Component with Decart SDK
+ * @fileoverview Live AI Style Effects Component
  *
- * Real-time video try-on using Decart AI's mirage_v2 (MirageLSD) model.
- * User uploads their own clothing image to try on live via AI transformation.
+ * Real-time video style transformation using Decart AI's mirage_v2 model.
+ * Apply creative style effects to your live video feed.
+ * 
+ * NOTE: This is for style effects, not exact clothing matching.
+ * For accurate virtual try-on, use the Photo Try-On feature.
  *
  * Model: mirage_v2 (MirageLSD 2.0)
  * Endpoint: wss://api3.decart.ai/v1/stream?model=mirage_v2
@@ -12,10 +15,62 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     X, Loader2, Sparkles, Video, VideoOff,
-    Upload, Wand2, Wifi, WifiOff, Camera, ImagePlus
+    Wand2, Wifi, WifiOff, Camera, Palette, Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+
+// Preset style effects
+const STYLE_PRESETS = [
+    {
+        id: 'formal',
+        name: 'Formal Look',
+        prompt: 'Transform the person to wear an elegant formal business suit with tie, professional executive appearance, photorealistic',
+        icon: '👔',
+    },
+    {
+        id: 'casual',
+        name: 'Casual Vibes',
+        prompt: 'Transform the person to wear casual streetwear, relaxed modern fashion, comfortable trendy outfit, photorealistic',
+        icon: '👕',
+    },
+    {
+        id: 'party',
+        name: 'Party Mode',
+        prompt: 'Transform the person to wear glamorous party outfit, sparkling festive fashion, celebration ready, photorealistic',
+        icon: '✨',
+    },
+    {
+        id: 'anime',
+        name: 'Anime Style',
+        prompt: 'Transform into anime art style, vibrant colors, anime character appearance, Japanese animation aesthetic',
+        icon: '🎌',
+    },
+    {
+        id: 'cyberpunk',
+        name: 'Cyberpunk',
+        prompt: 'Cyberpunk aesthetic, neon lighting, futuristic tech fashion, glowing accents, sci-fi atmosphere',
+        icon: '🌆',
+    },
+    {
+        id: 'vintage',
+        name: 'Vintage Classic',
+        prompt: 'Vintage retro fashion style, classic 1950s elegant outfit, timeless sophisticated look, film photography aesthetic',
+        icon: '📷',
+    },
+    {
+        id: 'royal',
+        name: 'Royal Elegance',
+        prompt: 'Royal elegant attire, luxurious regal fashion, aristocratic refined style, majestic appearance',
+        icon: '👑',
+    },
+    {
+        id: 'athletic',
+        name: 'Sporty Active',
+        prompt: 'Athletic sporty outfit, modern activewear, fitness fashion, dynamic energetic style, photorealistic',
+        icon: '🏃',
+    },
+];
 
 interface LiveVTONProps {
     isOpen: boolean;
@@ -24,10 +79,9 @@ interface LiveVTONProps {
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
 
-// API key from environment or hardcoded
+// API key from environment
 const DECART_API_KEY = import.meta.env.VITE_DECART_API_KEY || 'mirrorx_JSsnNnCHmtYMltDXFJAbMLAXdShCYNKdzhZZDsEZndVJLaIKFPVvUdZrWjiuTAvH';
 
-// Model specifications for mirage_v2
 const MODEL_SPECS = {
     width: 1280,
     height: 720,
@@ -35,7 +89,6 @@ const MODEL_SPECS = {
     model: 'mirage_v2',
 };
 
-// Decart WebSocket endpoint
 const DECART_WS_URL = 'wss://api3.decart.ai/v1/stream';
 
 export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
@@ -45,64 +98,17 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
     const wsRef = useRef<WebSocket | null>(null);
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // State
     const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
     const [error, setError] = useState<string | null>(null);
     const [isTransforming, setIsTransforming] = useState(false);
-    const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-    const [uploadedImageName, setUploadedImageName] = useState<string>('');
-    const [currentPrompt, setCurrentPrompt] = useState('');
+    const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
+    const [customPrompt, setCustomPrompt] = useState('');
     const [showOriginal, setShowOriginal] = useState(false);
-    const [styleMode, setStyleMode] = useState<'realistic' | 'anime' | 'cyberpunk'>('realistic');
-
-    // Handle image upload
-    const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        if (!file.type.startsWith('image/')) {
-            setError('Please upload an image file');
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setUploadedImage(reader.result as string);
-            setUploadedImageName(file.name);
-            setError(null);
-        };
-        reader.onerror = () => {
-            setError('Failed to read image file');
-        };
-        reader.readAsDataURL(file);
-    }, []);
-
-    // Clear uploaded image
-    const clearUploadedImage = useCallback(() => {
-        setUploadedImage(null);
-        setUploadedImageName('');
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
-    }, []);
-
-    // Generate try-on prompt
-    const generateTryOnPrompt = useCallback((style: string) => {
-        const stylePrefix = style === 'anime'
-            ? 'Anime style, '
-            : style === 'cyberpunk'
-                ? 'Cyberpunk aesthetic with neon lighting, '
-                : '';
-
-        return `${stylePrefix}Transform the person to wear the uploaded clothing item. CRITICAL: Keep the person's face, skin tone, hair, body shape, and all physical features EXACTLY the same - 100% identity preservation. Only modify the clothing/outfit area. Photorealistic fabric textures, natural draping, accurate lighting.`;
-    }, []);
 
     // Create WebRTC peer connection
     const createPeerConnection = useCallback(async (stream: MediaStream) => {
-        console.log('[LiveVTON] Creating peer connection...');
-
         const pc = new RTCPeerConnection({
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -121,7 +127,6 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
         };
 
         pc.oniceconnectionstatechange = () => {
-            console.log('[LiveVTON] ICE state:', pc.iceConnectionState);
             if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
                 setConnectionState('connected');
             } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
@@ -130,7 +135,6 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
         };
 
         pc.ontrack = (event) => {
-            console.log('[LiveVTON] Received transformed stream!');
             if (remoteVideoRef.current && event.streams[0]) {
                 remoteVideoRef.current.srcObject = event.streams[0];
                 remoteVideoRef.current.play().catch(console.error);
@@ -171,7 +175,6 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
         }
         setConnectionState('disconnected');
         setIsTransforming(false);
-        setCurrentPrompt('');
     }, []);
 
     // Connect to Decart
@@ -203,10 +206,7 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
 
-            ws.onopen = () => {
-                console.log('[LiveVTON] WebSocket connected');
-                createPeerConnection(stream);
-            };
+            ws.onopen = () => createPeerConnection(stream);
 
             ws.onmessage = async (event) => {
                 try {
@@ -233,20 +233,18 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
             };
 
             ws.onerror = () => {
-                setError('Connection failed. Check your API key.');
+                setError('Connection failed. Check your network.');
                 setConnectionState('disconnected');
             };
 
-            ws.onclose = () => {
-                setConnectionState('disconnected');
-            };
+            ws.onclose = () => setConnectionState('disconnected');
 
         } catch (err: unknown) {
             const error = err as Error;
             if (error.name === 'NotAllowedError') {
                 setError('Camera access denied. Please allow camera permissions.');
             } else if (error.name === 'NotFoundError') {
-                setError('No camera found. Please connect a camera.');
+                setError('No camera found.');
             } else {
                 setError(`Connection error: ${error.message}`);
             }
@@ -254,42 +252,26 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
         }
     }, [connectionState, createPeerConnection]);
 
-    // Start try-on
-    const startTryOn = useCallback(() => {
+    // Apply style effect
+    const applyStyle = useCallback((prompt: string, presetId?: string) => {
         if (wsRef.current?.readyState !== WebSocket.OPEN) {
-            setError('Not connected. Please wait for connection.');
-            return;
-        }
-
-        if (!uploadedImage) {
-            setError('Please upload a clothing image first.');
+            setError('Not connected. Please wait.');
             return;
         }
 
         setIsTransforming(true);
         setShowOriginal(false);
         setError(null);
+        if (presetId) setSelectedPreset(presetId);
 
-        const prompt = generateTryOnPrompt(styleMode);
-        setCurrentPrompt(prompt);
-
-        // Send prompt
         wsRef.current.send(JSON.stringify({
             type: 'prompt',
             prompt: prompt,
         }));
+    }, []);
 
-        // Send clothing image as reference
-        wsRef.current.send(JSON.stringify({
-            type: 'reference_image',
-            image: uploadedImage,
-        }));
-
-        console.log('[LiveVTON] Started try-on with uploaded clothing');
-    }, [styleMode, uploadedImage, generateTryOnPrompt]);
-
-    // Stop try-on
-    const stopTryOn = useCallback(() => {
+    // Stop effect
+    const stopEffect = useCallback(() => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'prompt',
@@ -297,7 +279,7 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
             }));
         }
         setIsTransforming(false);
-        setCurrentPrompt('');
+        setSelectedPreset(null);
     }, []);
 
     // Handle close
@@ -332,20 +314,11 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
             >
-                {/* Hidden file input */}
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                />
-
                 {/* Header */}
                 <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 bg-gradient-to-b from-black/90 to-transparent">
                     <div className="flex items-center gap-3">
-                        <Sparkles className="w-6 h-6 text-gold-400" />
-                        <span className="text-xl font-bold text-white">Live Try-On</span>
+                        <Palette className="w-6 h-6 text-gold-400" />
+                        <span className="text-xl font-bold text-white">Live Style Effects</span>
                         <span className={cn(
                             "px-3 py-1 text-xs rounded-full flex items-center gap-2",
                             connectionState === 'connected'
@@ -409,7 +382,7 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
                                         ? "bg-white/20 text-white"
                                         : "bg-gold-500/20 text-gold-400"
                                 )}>
-                                    {showOriginal ? 'Original' : <><Sparkles className="w-4 h-4" /> AI Transformed</>}
+                                    {showOriginal ? 'Original' : <><Sparkles className="w-4 h-4" /> AI Styled</>}
                                 </span>
                             </div>
                         )}
@@ -434,7 +407,6 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
                             </div>
                         )}
 
-                        {/* Error Message */}
                         {error && (
                             <div className="absolute top-24 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-6 py-3 rounded-lg max-w-md text-center">
                                 {error}
@@ -444,87 +416,61 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
 
                     {/* Sidebar */}
                     <div className="w-80 bg-black/90 p-4 flex flex-col gap-4 border-l border-white/10 overflow-y-auto">
-                        {/* Upload Section */}
-                        <div className="space-y-3">
-                            <h3 className="text-white font-semibold text-lg">Your Clothing</h3>
-
-                            {uploadedImage ? (
-                                <div className="bg-white/10 rounded-lg p-4 space-y-3">
-                                    <img
-                                        src={uploadedImage}
-                                        alt="Uploaded clothing"
-                                        className="w-full h-48 object-contain rounded-lg bg-white/5"
-                                    />
-                                    <p className="text-gray-400 text-sm truncate">{uploadedImageName}</p>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={clearUploadedImage}
-                                        className="w-full text-red-400 border-red-500/30 hover:bg-red-500/10"
-                                    >
-                                        Remove Image
-                                    </Button>
-                                </div>
-                            ) : (
-                                <div
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="bg-white/5 border-2 border-dashed border-white/20 rounded-lg p-8 flex flex-col items-center gap-4 cursor-pointer hover:border-gold-400/50 hover:bg-white/10 transition-colors"
-                                >
-                                    <ImagePlus className="w-12 h-12 text-gray-500" />
-                                    <div className="text-center">
-                                        <p className="text-white font-medium">Upload Clothing Image</p>
-                                        <p className="text-gray-500 text-sm mt-1">Click to browse or drag & drop</p>
-                                    </div>
-                                </div>
-                            )}
-
-                            <Button
-                                variant="outline"
-                                onClick={() => fileInputRef.current?.click()}
-                                className="w-full gap-2"
-                            >
-                                <Upload className="w-4 h-4" />
-                                {uploadedImage ? 'Change Image' : 'Upload Image'}
-                            </Button>
+                        {/* Info Banner */}
+                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 flex gap-2">
+                            <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                            <p className="text-blue-300 text-xs">
+                                This applies <strong>creative style effects</strong> to your live video.
+                                For exact clothing try-on, use <strong>Photo Try-On</strong> feature.
+                            </p>
                         </div>
 
-                        {/* Style Selector */}
+                        {/* Style Presets */}
                         <div className="space-y-2">
-                            <label className="text-gray-400 text-sm">Style Mode</label>
-                            <div className="flex gap-2">
-                                {(['realistic', 'anime', 'cyberpunk'] as const).map((style) => (
+                            <h3 className="text-white font-semibold">Style Effects</h3>
+                            <div className="grid grid-cols-2 gap-2">
+                                {STYLE_PRESETS.map((preset) => (
                                     <Button
-                                        key={style}
-                                        variant={styleMode === style ? 'default' : 'outline'}
+                                        key={preset.id}
+                                        variant={selectedPreset === preset.id ? 'default' : 'outline'}
                                         size="sm"
-                                        onClick={() => setStyleMode(style)}
-                                        className="flex-1 capitalize text-xs"
+                                        onClick={() => applyStyle(preset.prompt, preset.id)}
+                                        disabled={connectionState !== 'connected'}
+                                        className={cn(
+                                            "flex flex-col items-center gap-1 h-auto py-3",
+                                            selectedPreset === preset.id && "bg-gold-500 text-black"
+                                        )}
                                     >
-                                        {style}
+                                        <span className="text-lg">{preset.icon}</span>
+                                        <span className="text-xs">{preset.name}</span>
                                     </Button>
                                 ))}
                             </div>
                         </div>
 
-                        {/* Current Prompt */}
-                        {isTransforming && currentPrompt && (
-                            <div className="p-3 bg-gold-500/10 rounded-lg border border-gold-500/30">
-                                <p className="text-gold-400 text-xs line-clamp-3">{currentPrompt}</p>
-                            </div>
-                        )}
+                        {/* Custom Prompt */}
+                        <div className="space-y-2">
+                            <label className="text-gray-400 text-sm">Custom Style</label>
+                            <textarea
+                                value={customPrompt}
+                                onChange={(e) => setCustomPrompt(e.target.value)}
+                                placeholder="Describe a style effect..."
+                                className="w-full bg-white/10 border border-white/20 rounded-lg p-3 text-white text-sm resize-none h-20 placeholder:text-gray-500"
+                            />
+                            <Button
+                                onClick={() => applyStyle(customPrompt)}
+                                disabled={connectionState !== 'connected' || !customPrompt.trim()}
+                                size="sm"
+                                className="w-full gap-2"
+                            >
+                                <Wand2 className="w-4 h-4" />
+                                Apply Custom Style
+                            </Button>
+                        </div>
 
                         {/* Actions */}
                         <div className="flex flex-col gap-2 mt-auto">
-                            {!isTransforming ? (
-                                <Button
-                                    onClick={startTryOn}
-                                    disabled={connectionState !== 'connected' || !uploadedImage}
-                                    className="w-full gap-2 bg-gradient-to-r from-gold-500 to-gold-600 text-black font-bold disabled:opacity-50"
-                                >
-                                    <Wand2 className="w-5 h-5" />
-                                    {!uploadedImage ? 'Upload Clothing First' : 'Try On Live'}
-                                </Button>
-                            ) : (
+                            {isTransforming && (
                                 <>
                                     <Button
                                         onClick={() => setShowOriginal(!showOriginal)}
@@ -532,15 +478,15 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
                                         className="w-full gap-2"
                                     >
                                         {showOriginal ? <Sparkles className="w-5 h-5" /> : <Video className="w-5 h-5" />}
-                                        {showOriginal ? 'Show Transformed' : 'Show Original'}
+                                        {showOriginal ? 'Show Styled' : 'Show Original'}
                                     </Button>
                                     <Button
-                                        onClick={stopTryOn}
+                                        onClick={stopEffect}
                                         variant="outline"
                                         className="w-full gap-2 border-red-500/50 text-red-400"
                                     >
                                         <VideoOff className="w-5 h-5" />
-                                        Stop Try-On
+                                        Stop Effect
                                     </Button>
                                 </>
                             )}
