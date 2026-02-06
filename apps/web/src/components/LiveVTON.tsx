@@ -1,90 +1,44 @@
 /**
- * @fileoverview Live Virtual Try-On Component with WebRTC
+ * @fileoverview Live Virtual Try-On Component with Decart SDK
  *
  * Real-time video try-on using Decart AI's mirage_v2 (MirageLSD) model.
- * User can select from demo clothing or upload their own image.
- * The AI transforms the video to show them wearing the clothing.
+ * User uploads their own clothing image to try on live via AI transformation.
  *
  * Model: mirage_v2 (MirageLSD 2.0)
  * Endpoint: wss://api3.decart.ai/v1/stream?model=mirage_v2
- * Credit: 1 per second
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     X, Loader2, Sparkles, Video, VideoOff,
-    Upload, Wand2, Wifi, WifiOff, Camera,
-    ChevronLeft, ChevronRight, ShoppingBag
+    Upload, Wand2, Wifi, WifiOff, Camera, ImagePlus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useAuthStore } from '@/store/auth-store';
-
-// Demo clothing items for users to try
-const DEMO_CLOTHING = [
-    {
-        id: 'demo-1',
-        name: 'Classic Navy Blazer',
-        image: 'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=400',
-        description: 'A tailored navy blue blazer with modern slim fit, perfect for formal occasions',
-        price: 4999,
-    },
-    {
-        id: 'demo-2',
-        name: 'Burgundy Polo Shirt',
-        image: 'https://images.unsplash.com/photo-1586363104862-3a5e2ab60d99?w=400',
-        description: 'A premium cotton polo shirt in rich burgundy color with classic collar',
-        price: 1299,
-    },
-    {
-        id: 'demo-3',
-        name: 'Floral Summer Dress',
-        image: 'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=400',
-        description: 'A flowing floral print summer dress with V-neckline and knee-length hem',
-        price: 2499,
-    },
-    {
-        id: 'demo-4',
-        name: 'Denim Jacket',
-        image: 'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=400',
-        description: 'Classic blue denim jacket with distressed details and brass buttons',
-        price: 3499,
-    },
-    {
-        id: 'demo-5',
-        name: 'White Formal Shirt',
-        image: 'https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=400',
-        description: 'Crisp white formal shirt with spread collar, perfect for office wear',
-        price: 1899,
-    },
-];
 
 interface LiveVTONProps {
     isOpen: boolean;
     onClose: () => void;
-    onAddToCart?: (item: { id: string; name: string; price: number }) => void;
 }
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
 
-interface DecartConfig {
-    serverUrl: string;
-    sessionToken: string;
-    model: string;
-}
+// API key from environment or hardcoded
+const DECART_API_KEY = import.meta.env.VITE_DECART_API_KEY || 'mirrorx_JSsnNnCHmtYMltDXFJAbMLAXdShCYNKdzhZZDsEZndVJLaIKFPVvUdZrWjiuTAvH';
 
-// Model specifications for lucy_2_rt
+// Model specifications for mirage_v2
 const MODEL_SPECS = {
     width: 1280,
-    height: 704,
-    fps: 25,
+    height: 720,
+    fps: 30,
+    model: 'mirage_v2',
 };
 
-export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
-    // Auth
-    const { session } = useAuthStore();
+// Decart WebSocket endpoint
+const DECART_WS_URL = 'wss://api3.decart.ai/v1/stream';
 
+export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
     // Refs
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -97,88 +51,11 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
     const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
     const [error, setError] = useState<string | null>(null);
     const [isTransforming, setIsTransforming] = useState(false);
-    const [selectedIndex, setSelectedIndex] = useState(0);
     const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+    const [uploadedImageName, setUploadedImageName] = useState<string>('');
     const [currentPrompt, setCurrentPrompt] = useState('');
     const [showOriginal, setShowOriginal] = useState(false);
     const [styleMode, setStyleMode] = useState<'realistic' | 'anime' | 'cyberpunk'>('realistic');
-
-    // Config state
-    const [config, setConfig] = useState<DecartConfig | null>(null);
-    const [isConfigLoading, setIsConfigLoading] = useState(false);
-
-    // Fetch config on open
-    useEffect(() => {
-        const fetchConfig = async () => {
-            if (!isOpen || config) return;
-
-            if (!session?.access_token) {
-                console.warn('[LiveVTON] No access token available');
-                setError('Please log in to use Live Try-On');
-                return;
-            }
-
-            try {
-                setIsConfigLoading(true);
-                setError(null);
-
-                const apiUrl = import.meta.env.VITE_API_URL;
-                console.log('[LiveVTON] Fetching config from:', `${apiUrl}/tryon/live/config`);
-
-                const response = await fetch(`${apiUrl}/tryon/live/config`, {
-                    headers: {
-                        'Authorization': `Bearer ${session.access_token}`
-                    }
-                });
-
-                if (response.status === 401) {
-                    throw new Error('Unauthorized. Please log in again.');
-                }
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Failed to get configuration: ${response.status} ${errorText}`);
-                }
-
-                const data = await response.json();
-                console.log('[LiveVTON] Config received:', data);
-
-                if (!data.serverUrl || !data.sessionToken) {
-                    throw new Error('Invalid configuration received from server');
-                }
-
-                setConfig({
-                    serverUrl: data.serverUrl,
-                    sessionToken: data.sessionToken,
-                    model: data.model || 'lucy_2_rt'
-                });
-            } catch (err) {
-                console.error('[LiveVTON] Config fetch error:', err);
-                setError((err as Error).message || 'Failed to initialize session');
-            } finally {
-                setIsConfigLoading(false);
-            }
-        };
-
-        fetchConfig();
-    }, [isOpen, config, session]);
-
-    // Get current clothing item (uploaded or demo)
-    const currentClothing = uploadedImage
-        ? { id: 'uploaded', name: 'Your Clothing', image: uploadedImage, description: 'User uploaded clothing', price: 0 }
-        : DEMO_CLOTHING[selectedIndex];
-
-    // Generate try-on prompt with identity preservation
-    const generateTryOnPrompt = useCallback((description: string, style: string) => {
-        const stylePrefix = style === 'anime'
-            ? 'Anime style, '
-            : style === 'cyberpunk'
-                ? 'Cyberpunk aesthetic with neon lighting, '
-                : '';
-
-        // Lucy 2 RT specific prompt for identity preservation
-        return `${stylePrefix}Change ONLY the clothing to: ${description}. CRITICAL: Keep the person's face, skin tone, hair, body shape, and all physical features EXACTLY the same - 100% identity preservation. Only modify the clothing/outfit area. Photorealistic fabric textures, natural draping, accurate lighting.`;
-    }, []);
 
     // Handle image upload
     const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -193,6 +70,7 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
         const reader = new FileReader();
         reader.onloadend = () => {
             setUploadedImage(reader.result as string);
+            setUploadedImageName(file.name);
             setError(null);
         };
         reader.onerror = () => {
@@ -201,19 +79,30 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
         reader.readAsDataURL(file);
     }, []);
 
-    // Navigate demo clothing
-    const nextClothing = () => {
-        setUploadedImage(null); // Clear uploaded image when browsing demos
-        setSelectedIndex((prev: number) => (prev + 1) % DEMO_CLOTHING.length);
-    };
-
-    const prevClothing = () => {
+    // Clear uploaded image
+    const clearUploadedImage = useCallback(() => {
         setUploadedImage(null);
-        setSelectedIndex((prev: number) => (prev - 1 + DEMO_CLOTHING.length) % DEMO_CLOTHING.length);
-    };
+        setUploadedImageName('');
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    }, []);
 
-    // Create WebRTC peer connection (DEFINED BEFORE CONNECT)
+    // Generate try-on prompt
+    const generateTryOnPrompt = useCallback((style: string) => {
+        const stylePrefix = style === 'anime'
+            ? 'Anime style, '
+            : style === 'cyberpunk'
+                ? 'Cyberpunk aesthetic with neon lighting, '
+                : '';
+
+        return `${stylePrefix}Transform the person to wear the uploaded clothing item. CRITICAL: Keep the person's face, skin tone, hair, body shape, and all physical features EXACTLY the same - 100% identity preservation. Only modify the clothing/outfit area. Photorealistic fabric textures, natural draping, accurate lighting.`;
+    }, []);
+
+    // Create WebRTC peer connection
     const createPeerConnection = useCallback(async (stream: MediaStream) => {
+        console.log('[LiveVTON] Creating peer connection...');
+
         const pc = new RTCPeerConnection({
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -231,7 +120,15 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
             }
         };
 
-        // Receive transformed video stream
+        pc.oniceconnectionstatechange = () => {
+            console.log('[LiveVTON] ICE state:', pc.iceConnectionState);
+            if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+                setConnectionState('connected');
+            } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'disconnected') {
+                setError('Connection lost. Please reconnect.');
+            }
+        };
+
         pc.ontrack = (event) => {
             console.log('[LiveVTON] Received transformed stream!');
             if (remoteVideoRef.current && event.streams[0]) {
@@ -240,12 +137,10 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
             }
         };
 
-        // Add local video track
         stream.getTracks().forEach((track: MediaStreamTrack) => {
             pc.addTrack(track, stream);
         });
 
-        // Create and send offer
         const offer = await pc.createOffer({
             offerToReceiveVideo: true,
             offerToReceiveAudio: false,
@@ -259,97 +154,6 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
             }));
         }
     }, []);
-
-    // Connect to Decart WebRTC
-    const connect = useCallback(async () => {
-        if (connectionState === 'connecting' || connectionState === 'connected') return;
-
-        if (!config) {
-            setError('System initializing, please wait...');
-            return;
-        }
-
-        try {
-            setConnectionState('connecting');
-            setError(null);
-
-            // Get user's camera
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: { ideal: MODEL_SPECS.width },
-                    height: { ideal: MODEL_SPECS.height },
-                    frameRate: { ideal: MODEL_SPECS.fps },
-                    facingMode: 'user',
-                },
-                audio: false,
-            });
-
-            localStreamRef.current = stream;
-
-            if (localVideoRef.current) {
-                localVideoRef.current.srcObject = stream;
-                localVideoRef.current.play().catch(console.error);
-            }
-
-            // Connect WebSocket with API key and model from config
-            const wsUrl = `${config.serverUrl}?api_key=${config.sessionToken}&model=${config.model}`;
-            console.log('[LiveVTON] Connecting to Decart with model:', config.model);
-
-            const ws = new WebSocket(wsUrl);
-            wsRef.current = ws;
-
-            ws.onopen = () => {
-                console.log('[LiveVTON] WebSocket connected');
-                createPeerConnection(stream);
-            };
-
-            ws.onmessage = async (event) => {
-                try {
-                    const message = JSON.parse(event.data);
-                    console.log('[LiveVTON] Message:', message.type);
-
-                    if (message.type === 'answer' && pcRef.current) {
-                        await pcRef.current.setRemoteDescription({
-                            type: 'answer',
-                            sdp: message.sdp,
-                        });
-                        setConnectionState('connected');
-                        console.log('[LiveVTON] WebRTC connected!');
-                    }
-
-                    if (message.type === 'ice-candidate' && pcRef.current && message.candidate) {
-                        await pcRef.current.addIceCandidate(new RTCIceCandidate(message.candidate));
-                    }
-
-                    if (message.type === 'error') {
-                        setError(message.message || 'Server error');
-                    }
-                } catch (err) {
-                    console.error('[LiveVTON] Message error:', err);
-                }
-            };
-
-            ws.onerror = () => {
-                setError('Connection failed. Check your API key.');
-                setConnectionState('disconnected');
-            };
-
-            ws.onclose = () => {
-                console.log('[LiveVTON] WebSocket closed');
-                setConnectionState('disconnected');
-            };
-
-        } catch (err: unknown) {
-            const error = err as Error;
-            console.error('[LiveVTON] Connection error:', error);
-            if (error.name === 'NotAllowedError') {
-                setError('Camera access denied. Please allow camera permissions.');
-            } else {
-                setError('Failed to access camera. Please check permissions.');
-            }
-            setConnectionState('disconnected');
-        }
-    }, [connectionState, config, createPeerConnection]);
 
     // Disconnect
     const disconnect = useCallback(() => {
@@ -370,10 +174,95 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
         setCurrentPrompt('');
     }, []);
 
-    // Start try-on transformation
+    // Connect to Decart
+    const connect = useCallback(async () => {
+        if (connectionState === 'connecting' || connectionState === 'connected') return;
+
+        try {
+            setConnectionState('connecting');
+            setError(null);
+
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: MODEL_SPECS.width },
+                    height: { ideal: MODEL_SPECS.height },
+                    frameRate: { ideal: MODEL_SPECS.fps },
+                    facingMode: 'user',
+                },
+                audio: false,
+            });
+
+            localStreamRef.current = stream;
+
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = stream;
+                localVideoRef.current.play().catch(console.error);
+            }
+
+            const wsUrl = `${DECART_WS_URL}?api_key=${DECART_API_KEY}&model=${MODEL_SPECS.model}`;
+            const ws = new WebSocket(wsUrl);
+            wsRef.current = ws;
+
+            ws.onopen = () => {
+                console.log('[LiveVTON] WebSocket connected');
+                createPeerConnection(stream);
+            };
+
+            ws.onmessage = async (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+
+                    if (message.type === 'answer' && pcRef.current) {
+                        await pcRef.current.setRemoteDescription({
+                            type: 'answer',
+                            sdp: message.sdp,
+                        });
+                        setConnectionState('connected');
+                    }
+
+                    if (message.type === 'ice-candidate' && pcRef.current && message.candidate) {
+                        await pcRef.current.addIceCandidate(new RTCIceCandidate(message.candidate));
+                    }
+
+                    if (message.type === 'error') {
+                        setError(message.message || 'Server error');
+                    }
+                } catch (err) {
+                    console.error('[LiveVTON] Message error:', err);
+                }
+            };
+
+            ws.onerror = () => {
+                setError('Connection failed. Check your API key.');
+                setConnectionState('disconnected');
+            };
+
+            ws.onclose = () => {
+                setConnectionState('disconnected');
+            };
+
+        } catch (err: unknown) {
+            const error = err as Error;
+            if (error.name === 'NotAllowedError') {
+                setError('Camera access denied. Please allow camera permissions.');
+            } else if (error.name === 'NotFoundError') {
+                setError('No camera found. Please connect a camera.');
+            } else {
+                setError(`Connection error: ${error.message}`);
+            }
+            setConnectionState('disconnected');
+        }
+    }, [connectionState, createPeerConnection]);
+
+    // Start try-on
     const startTryOn = useCallback(() => {
         if (wsRef.current?.readyState !== WebSocket.OPEN) {
             setError('Not connected. Please wait for connection.');
+            return;
+        }
+
+        if (!uploadedImage) {
+            setError('Please upload a clothing image first.');
             return;
         }
 
@@ -381,27 +270,25 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
         setShowOriginal(false);
         setError(null);
 
-        const prompt = generateTryOnPrompt(currentClothing.description, styleMode);
+        const prompt = generateTryOnPrompt(styleMode);
         setCurrentPrompt(prompt);
 
-        // Send prompt to Decart
+        // Send prompt
         wsRef.current.send(JSON.stringify({
             type: 'prompt',
             prompt: prompt,
         }));
 
-        // If we have an uploaded image, send it as reference
-        if (uploadedImage) {
-            wsRef.current.send(JSON.stringify({
-                type: 'reference_image',
-                image: uploadedImage,
-            }));
-        }
+        // Send clothing image as reference
+        wsRef.current.send(JSON.stringify({
+            type: 'reference_image',
+            image: uploadedImage,
+        }));
 
-        console.log('[LiveVTON] Started try-on:', prompt);
-    }, [currentClothing, styleMode, uploadedImage, generateTryOnPrompt]);
+        console.log('[LiveVTON] Started try-on with uploaded clothing');
+    }, [styleMode, uploadedImage, generateTryOnPrompt]);
 
-    // Stop transformation
+    // Stop try-on
     const stopTryOn = useCallback(() => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
@@ -421,13 +308,14 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
 
     // Auto-connect when opened
     useEffect(() => {
-        if (isOpen && connectionState === 'disconnected' && config) {
-            connect();
+        if (isOpen && connectionState === 'disconnected') {
+            const timer = setTimeout(() => connect(), 100);
+            return () => clearTimeout(timer);
         }
         return () => {
             if (!isOpen) disconnect();
         };
-    }, [isOpen, connectionState, connect, disconnect, config]);
+    }, [isOpen, connectionState, connect, disconnect]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -490,7 +378,6 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
                 <div className="flex h-full pt-16 pb-16">
                     {/* Video Area */}
                     <div className="flex-1 relative">
-                        {/* Local video (camera) */}
                         <video
                             ref={localVideoRef}
                             className={cn(
@@ -503,7 +390,6 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
                             style={{ transform: 'scaleX(-1)' }}
                         />
 
-                        {/* Remote video (transformed) */}
                         <video
                             ref={remoteVideoRef}
                             className={cn(
@@ -515,7 +401,6 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
                             style={{ transform: 'scaleX(-1)' }}
                         />
 
-                        {/* Video label */}
                         {isTransforming && (
                             <div className="absolute bottom-4 left-4">
                                 <span className={cn(
@@ -532,12 +417,7 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
                         {/* Connection Overlay */}
                         {connectionState !== 'connected' && (
                             <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-                                {isConfigLoading ? (
-                                    <div className="flex flex-col items-center gap-4">
-                                        <Loader2 className="w-16 h-16 text-blue-400 animate-spin" />
-                                        <span className="text-white text-xl">Initializing...</span>
-                                    </div>
-                                ) : connectionState === 'connecting' ? (
+                                {connectionState === 'connecting' ? (
                                     <div className="flex flex-col items-center gap-4">
                                         <Loader2 className="w-16 h-16 text-gold-400 animate-spin" />
                                         <span className="text-white text-xl">Connecting to AI...</span>
@@ -556,7 +436,7 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
 
                         {/* Error Message */}
                         {error && (
-                            <div className="absolute top-24 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-6 py-3 rounded-lg">
+                            <div className="absolute top-24 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-6 py-3 rounded-lg max-w-md text-center">
                                 {error}
                             </div>
                         )}
@@ -564,17 +444,48 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
 
                     {/* Sidebar */}
                     <div className="w-80 bg-black/90 p-4 flex flex-col gap-4 border-l border-white/10 overflow-y-auto">
-                        {/* Current Clothing */}
-                        <div className="bg-white/10 rounded-lg p-4">
-                            <img
-                                src={currentClothing.image}
-                                alt={currentClothing.name}
-                                className="w-full h-40 object-contain rounded-lg mb-3 bg-white/5"
-                            />
-                            <h3 className="text-white font-semibold">{currentClothing.name}</h3>
-                            {currentClothing.price > 0 && (
-                                <p className="text-gold-400 font-bold">₹{currentClothing.price}</p>
+                        {/* Upload Section */}
+                        <div className="space-y-3">
+                            <h3 className="text-white font-semibold text-lg">Your Clothing</h3>
+
+                            {uploadedImage ? (
+                                <div className="bg-white/10 rounded-lg p-4 space-y-3">
+                                    <img
+                                        src={uploadedImage}
+                                        alt="Uploaded clothing"
+                                        className="w-full h-48 object-contain rounded-lg bg-white/5"
+                                    />
+                                    <p className="text-gray-400 text-sm truncate">{uploadedImageName}</p>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={clearUploadedImage}
+                                        className="w-full text-red-400 border-red-500/30 hover:bg-red-500/10"
+                                    >
+                                        Remove Image
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="bg-white/5 border-2 border-dashed border-white/20 rounded-lg p-8 flex flex-col items-center gap-4 cursor-pointer hover:border-gold-400/50 hover:bg-white/10 transition-colors"
+                                >
+                                    <ImagePlus className="w-12 h-12 text-gray-500" />
+                                    <div className="text-center">
+                                        <p className="text-white font-medium">Upload Clothing Image</p>
+                                        <p className="text-gray-500 text-sm mt-1">Click to browse or drag & drop</p>
+                                    </div>
+                                </div>
                             )}
+
+                            <Button
+                                variant="outline"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="w-full gap-2"
+                            >
+                                <Upload className="w-4 h-4" />
+                                {uploadedImage ? 'Change Image' : 'Upload Image'}
+                            </Button>
                         </div>
 
                         {/* Style Selector */}
@@ -595,29 +506,6 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
                             </div>
                         </div>
 
-                        {/* Demo Clothing Navigation */}
-                        <div className="flex items-center justify-between">
-                            <Button variant="ghost" size="icon" onClick={prevClothing}>
-                                <ChevronLeft className="w-6 h-6 text-white" />
-                            </Button>
-                            <span className="text-gray-400 text-sm">
-                                {uploadedImage ? 'Your Upload' : `${selectedIndex + 1} / ${DEMO_CLOTHING.length}`}
-                            </span>
-                            <Button variant="ghost" size="icon" onClick={nextClothing}>
-                                <ChevronRight className="w-6 h-6 text-white" />
-                            </Button>
-                        </div>
-
-                        {/* Upload Button */}
-                        <Button
-                            variant="outline"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-full gap-2"
-                        >
-                            <Upload className="w-4 h-4" />
-                            Upload Your Clothing
-                        </Button>
-
                         {/* Current Prompt */}
                         {isTransforming && currentPrompt && (
                             <div className="p-3 bg-gold-500/10 rounded-lg border border-gold-500/30">
@@ -630,11 +518,11 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
                             {!isTransforming ? (
                                 <Button
                                     onClick={startTryOn}
-                                    disabled={connectionState !== 'connected'}
-                                    className="w-full gap-2 bg-gradient-to-r from-gold-500 to-gold-600 text-black font-bold"
+                                    disabled={connectionState !== 'connected' || !uploadedImage}
+                                    className="w-full gap-2 bg-gradient-to-r from-gold-500 to-gold-600 text-black font-bold disabled:opacity-50"
                                 >
                                     <Wand2 className="w-5 h-5" />
-                                    Try On Live
+                                    {!uploadedImage ? 'Upload Clothing First' : 'Try On Live'}
                                 </Button>
                             ) : (
                                 <>
@@ -656,17 +544,6 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
                                     </Button>
                                 </>
                             )}
-
-                            {onAddToCart && currentClothing.price > 0 && (
-                                <Button
-                                    onClick={() => onAddToCart(currentClothing)}
-                                    variant="outline"
-                                    className="w-full gap-2"
-                                >
-                                    <ShoppingBag className="w-5 h-5" />
-                                    Add to Cart
-                                </Button>
-                            )}
                         </div>
                     </div>
                 </div>
@@ -674,7 +551,7 @@ export function LiveVTON({ isOpen, onClose, onAddToCart }: LiveVTONProps) {
                 {/* Status Bar */}
                 <div className="absolute bottom-0 left-0 right-0 p-3 bg-black border-t border-white/10">
                     <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
-                        <span>Model: Lucy 2 RT (Face Preserved)</span>
+                        <span>Model: {MODEL_SPECS.model}</span>
                         <span>•</span>
                         <span>{MODEL_SPECS.width}x{MODEL_SPECS.height}@{MODEL_SPECS.fps}fps</span>
                         <span>•</span>
