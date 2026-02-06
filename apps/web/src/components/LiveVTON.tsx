@@ -11,7 +11,7 @@
  * Endpoint: wss://api3.decart.ai/v1/stream?model=mirage_v2
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     X, Loader2, Sparkles, Video, VideoOff,
@@ -80,7 +80,7 @@ interface LiveVTONProps {
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
 
 // API key from environment
-const DECART_API_KEY = import.meta.env.VITE_DECART_API_KEY || 'mirrorx_JSsnNnCHmtYMltDXFJAbMLAXdShCYNKdzhZZDsEZndVJLaIKFPVvUdZrWjiuTAvH';
+const DECART_API_KEY = (import.meta.env.VITE_DECART_API_KEY as string) || 'mirrorx_JSsnNnCHmtYMltDXFJAbMLAXdShCYNKdzhZZDsEZndVJLaIKFPVvUdZrWjiuTAvH';
 
 const MODEL_SPECS = {
     width: 1280,
@@ -453,7 +453,7 @@ export function LiveVTON({ isOpen, onClose }: LiveVTONProps) {
                             <label className="text-gray-400 text-sm">Custom Style</label>
                             <textarea
                                 value={customPrompt}
-                                onChange={(e) => setCustomPrompt(e.target.value)}
+                                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setCustomPrompt(e.target.value)}
                                 placeholder="Describe a style effect..."
                                 className="w-full bg-white/10 border border-white/20 rounded-lg p-3 text-white text-sm resize-none h-20 placeholder:text-gray-500"
                             />
