@@ -266,6 +266,8 @@ importers:
         specifier: ^6.0.7
         version: 6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)
 
+  packages/ltx-trainer: {}
+
   packages/mirror3d-avatar:
     dependencies:
       '@mirrorx/mirror3d-retarget':
