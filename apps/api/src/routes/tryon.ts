@@ -924,6 +924,416 @@ router.post(
 // ==========================================
 
 import decart from '../services/decart.js';
+import { idmVtonService, hybridIdmVtonService, isIDMVTONAvailable, getIDMVTONHealth } from '../services/idm-vton-service.js';
+import { ltx2Service, LTX2ServiceConfig } from '../services/ltx2-service.js';
+
+// ==========================================
+// IDM-VTON TRY-ON (State-of-the-Art VTON)
+// ==========================================
+
+// POST /tryon/idmvton - High-quality try-on using IDM-VTON
+router.post(
+  '/idmvton',
+  authenticate,
+  upload.fields([
+    { name: 'selfie_image', maxCount: 1 },
+    { name: 'product_image', maxCount: 1 },
+  ]),
+  async (req: AuthRequest, res: Response) => {
+    const startTime = Date.now();
+    const jobId = uuidv4();
+
+    try {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      const selfieFile = files['selfie_image']?.[0];
+      const productFile = files['product_image']?.[0];
+      const {
+        category = 'upper_body',
+        preserve_face = 'true',
+        num_inference_steps = '30',
+        guidance_scale = '2.5',
+      } = req.body;
+
+      if (!selfieFile) {
+        return res.status(400).json({
+          error: 'Missing image',
+          message: 'Selfie image is required',
+        });
+      }
+
+      if (!productFile) {
+        return res.status(400).json({
+          error: 'Missing product',
+          message: 'Product/garment image is required',
+        });
+      }
+
+      const user = req.user!;
+      const userId = req.userId!;
+
+      // Check credits
+      const dailyUsage = await getDailyUsage(userId);
+      const hasFreeTries = user.subscription_tier === 'FREE' && dailyUsage < DAILY_FREE_TRYONS;
+      const hasPaidCredits = user.credits_balance > 0;
+      const hasUnlimited = user.subscription_tier !== 'FREE';
+
+      if (!hasFreeTries && !hasPaidCredits && !hasUnlimited) {
+        return res.status(402).json({
+          error: 'Insufficient credits',
+          message: 'No credits remaining.',
+        });
+      }
+
+      // Process images
+      const selfieBase64 = await processImage(selfieFile.buffer);
+      const productBase64 = await processImage(productFile.buffer);
+
+      // Save selfie for future use
+      saveUserSelfie(userId, selfieBase64);
+
+      // Create job record
+      await query(
+        `INSERT INTO tryon_jobs (id, user_id, mode, source_image_url, product_image_url, status, credits_used)
+         VALUES ($1, $2, $3, $4, $5, 'PROCESSING', 1)`,
+        [jobId, userId, 'IDM-VTON', selfieBase64, productBase64]
+      );
+
+      // Check IDM-VTON availability
+      const idmVtonAvailable = await isIDMVTONAvailable();
+
+      let resultImage: string;
+      let modelUsed: string;
+      let facePreserved = false;
+
+      if (idmVtonAvailable) {
+        // Use IDM-VTON service
+        try {
+          console.log(`[IDM-VTON] Generating try-on for job ${jobId}...`);
+
+          const result = await idmVtonService.generateTryOn({
+            personImage: selfieBase64,
+            garmentImage: productBase64,
+            category: category as 'upper_body' | 'lower_body' | 'dress',
+            preserveFace: preserve_face === 'true',
+            numInferenceSteps: parseInt(num_inference_steps, 10),
+            guidanceScale: parseFloat(guidance_scale),
+          });
+
+          resultImage = result.resultImage;
+          modelUsed = result.metadata.modelUsed;
+          facePreserved = result.metadata.facePreserved;
+
+          console.log(`[IDM-VTON] Success for job ${jobId}, processing time: ${result.metadata.processingTimeMs}ms`);
+        } catch (idmError) {
+          console.error('[IDM-VTON] Failed, falling back to Gemini:', idmError);
+          // Fallback to Gemini
+          resultImage = await generateTryOnImage(selfieBase64, productBase64, 'PART', 'female');
+          modelUsed = 'gemini-fallback';
+          facePreserved = true;
+        }
+      } else {
+        // IDM-VTON not available, use Gemini
+        console.log('[IDM-VTON] Service unavailable, using Gemini');
+        resultImage = await generateTryOnImage(selfieBase64, productBase64, 'PART', 'female');
+        modelUsed = 'gemini';
+        facePreserved = true;
+      }
+
+      // Validate result
+      if (!resultImage || !resultImage.startsWith('data:image/')) {
+        throw new Error('Invalid image generated');
+      }
+
+      const isValidImage = await validateGeneratedImage(resultImage);
+      if (!isValidImage) {
+        throw new Error('Generated image is invalid');
+      }
+
+      const processingTime = Date.now() - startTime;
+
+      // Update job and deduct credits
+      await withTransaction(async (client) => {
+        await client.query(
+          `UPDATE tryon_jobs SET status = 'SUCCEEDED', result_image_url = $1,
+           processing_time_ms = $2, completed_at = NOW()
+           WHERE id = $3`,
+          [resultImage, processingTime, jobId]
+        );
+
+        if (hasUnlimited) {
+          // No deduction
+        } else if (hasFreeTries) {
+          await client.query(
+            `INSERT INTO daily_usage (user_id, usage_date, tryon_count)
+             VALUES ($1, CURRENT_DATE, 1)
+             ON CONFLICT (user_id, usage_date)
+             DO UPDATE SET tryon_count = daily_usage.tryon_count + 1`,
+            [userId]
+          );
+        } else {
+          await client.query(
+            `INSERT INTO credits_ledger (user_id, amount, transaction_type, description, reference_id)
+             VALUES ($1, -1, 'USAGE', 'IDM-VTON try-on generation', $2)`,
+            [userId, jobId]
+          );
+        }
+      });
+
+      res.json({
+        job_id: jobId,
+        status: 'SUCCEEDED' as TryOnJobStatus,
+        result_image_url: resultImage,
+        credits_used: 1,
+        processing_time_ms: processingTime,
+        model_used: modelUsed,
+        face_preservation: {
+          facePreserved,
+          restorationApplied: facePreserved,
+        },
+      });
+    } catch (error) {
+      console.error('IDM-VTON try-on error:', error);
+      await query(
+        `UPDATE tryon_jobs SET status = 'FAILED', error_message = $1, completed_at = NOW()
+         WHERE id = $2`,
+        [(error as Error).message, jobId]
+      );
+      res.status(500).json({
+        error: 'Generation failed',
+        message: (error as Error).message || 'Please try again.',
+      });
+    }
+  }
+);
+
+// GET /tryon/idmvton/health - Check IDM-VTON service health
+router.get('/idmvton/health', async (_req, res: Response) => {
+  try {
+    const health = await getIDMVTONHealth();
+    res.json(health);
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: (error as Error).message,
+    });
+  }
+});
+
+// ==========================================
+// 360° VIDEO TRY-ON (LTX-2)
+// ==========================================
+
+// POST /tryon/360 - Generate 360° rotation video from try-on result
+router.post(
+  '/360',
+  authenticate,
+  upload.single('image'),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const imageFile = req.file;
+      const {
+        image_base64,
+        prompt = 'a 360-degree rotating shot of a person wearing fashion clothing, studio lighting, 4k',
+        num_frames = '80',
+        num_inference_steps = '40',
+        guidance_scale = '3.0',
+      } = req.body;
+
+      // Get image
+      let imageBase64: string;
+      if (imageFile) {
+        imageBase64 = await processImage(imageFile.buffer);
+      } else if (image_base64) {
+        imageBase64 = image_base64;
+      } else {
+        return res.status(400).json({
+          error: 'Missing image',
+          message: 'Image is required (either upload or base64)',
+        });
+      }
+
+      const userId = req.userId!;
+      const user = req.user!;
+
+      // Check credits (360 video costs 5 credits)
+      const dailyUsage = await getDailyUsage(userId);
+      const VIDEO_CREDIT_COST = 5;
+      const hasFreeTries = user.subscription_tier === 'FREE' && dailyUsage < DAILY_FREE_TRYONS;
+      const hasPaidCredits = user.credits_balance >= VIDEO_CREDIT_COST;
+      const hasUnlimited = user.subscription_tier !== 'FREE';
+
+      if (!hasFreeTries && !hasPaidCredits && !hasUnlimited) {
+        return res.status(402).json({
+          error: 'Insufficient credits',
+          message: `360° video generation requires ${VIDEO_CREDIT_COST} credits.`,
+        });
+      }
+
+      // Submit job to LTX-2 service
+      console.log(`[LTX-2] Submitting 360° video job for user ${userId}...`);
+
+      const job = await ltx2Service.submitJob(imageBase64, {
+        prompt,
+        numFrames: parseInt(num_frames, 10),
+        numInferenceSteps: parseInt(num_inference_steps, 10),
+        guidanceScale: parseFloat(guidance_scale),
+        width: 512,
+        height: 512,
+      });
+
+      console.log(`[LTX-2] Job submitted: ${job.jobId}`);
+
+      res.json({
+        job_id: job.jobId,
+        status: job.status,
+        message: 'Video generation job submitted. Poll /tryon/360/:jobId for status.',
+        credits_cost: VIDEO_CREDIT_COST,
+        estimated_time_seconds: 60,
+      });
+    } catch (error) {
+      console.error('360° video submission error:', error);
+      res.status(500).json({
+        error: 'Submission failed',
+        message: (error as Error).message || 'Failed to submit video job',
+      });
+    }
+  }
+);
+
+// GET /tryon/360/:jobId - Get 360° video job status
+router.get('/360/:jobId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { jobId } = req.params;
+    const status = await ltx2Service.getJobStatus(jobId);
+
+    res.json(status);
+  } catch (error) {
+    console.error('360° video status error:', error);
+    res.status(500).json({
+      error: 'Status check failed',
+      message: (error as Error).message,
+    });
+  }
+});
+
+// GET /tryon/360/:jobId/download - Download completed 360° video
+router.get('/360/:jobId/download', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { jobId } = req.params;
+
+    // Check job status
+    const status = await ltx2Service.getJobStatus(jobId);
+    if (status.status !== 'completed') {
+      return res.status(400).json({
+        error: 'Not ready',
+        message: `Video job is ${status.status}. Please wait until completed.`,
+      });
+    }
+
+    // Download video
+    const videoBuffer = await ltx2Service.downloadVideo(jobId);
+
+    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Content-Disposition', `attachment; filename="360-tryon-${jobId}.mp4"`);
+    res.send(videoBuffer);
+  } catch (error) {
+    console.error('360° video download error:', error);
+    res.status(500).json({
+      error: 'Download failed',
+      message: (error as Error).message,
+    });
+  }
+});
+
+// POST /tryon/360/full - Full pipeline: IDM-VTON + LTX-2 360° video
+router.post(
+  '/360/full',
+  authenticate,
+  upload.fields([
+    { name: 'selfie_image', maxCount: 1 },
+    { name: 'product_image', maxCount: 1 },
+  ]),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      const selfieFile = files['selfie_image']?.[0];
+      const productFile = files['product_image']?.[0];
+      const {
+        category = 'upper_body',
+        prompt = 'a 360-degree rotating shot of a person wearing fashion clothing, studio lighting, 4k',
+      } = req.body;
+
+      if (!selfieFile || !productFile) {
+        return res.status(400).json({
+          error: 'Missing images',
+          message: 'Both selfie and product images are required',
+        });
+      }
+
+      const userId = req.userId!;
+      const user = req.user!;
+
+      // Check credits (full pipeline costs 6 credits: 1 for VTON + 5 for 360 video)
+      const FULL_PIPELINE_COST = 6;
+      const hasPaidCredits = user.credits_balance >= FULL_PIPELINE_COST;
+      const hasUnlimited = user.subscription_tier !== 'FREE';
+
+      if (!hasPaidCredits && !hasUnlimited) {
+        return res.status(402).json({
+          error: 'Insufficient credits',
+          message: `Full 360° try-on requires ${FULL_PIPELINE_COST} credits.`,
+        });
+      }
+
+      // Process images
+      const selfieBase64 = await processImage(selfieFile.buffer);
+      const productBase64 = await processImage(productFile.buffer);
+
+      console.log(`[360 Full] Starting full pipeline for user ${userId}...`);
+
+      // Run full pipeline
+      const result = await ltx2Service.generate360TryOn(
+        selfieBase64,
+        productBase64,
+        {
+          garmentCategory: category as 'upper_body' | 'lower_body' | 'dress',
+          preserveFace: true,
+          prompt,
+        }
+      );
+
+      console.log(`[360 Full] Pipeline completed, job: ${result.jobId}`);
+
+      res.json({
+        job_id: result.jobId,
+        status: result.status,
+        vton_image: result.vtonResultImage,
+        message: 'Full 360° try-on job submitted. Poll /tryon/360/:jobId for video status.',
+        credits_cost: FULL_PIPELINE_COST,
+        metadata: result.metadata,
+      });
+    } catch (error) {
+      console.error('360° full pipeline error:', error);
+      res.status(500).json({
+        error: 'Pipeline failed',
+        message: (error as Error).message || 'Failed to run full 360° pipeline',
+      });
+    }
+  }
+);
+
+// GET /tryon/360/health - Check LTX-2 service health
+router.get('/360/health', async (_req, res: Response) => {
+  try {
+    const health = await ltx2Service.healthCheck();
+    res.json(health);
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: (error as Error).message,
+    });
+  }
+});
 
 // Configure multer for video uploads
 const videoUpload = multer({

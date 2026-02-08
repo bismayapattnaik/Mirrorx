@@ -1,0 +1,255 @@
+# MirrorX Full Stack Deployment
+# ============================================================================
+#
+# This docker-compose file provides a complete deployment of MirrorX including:
+# - Main API server (Node.js/TypeScript)
+# - IDM-VTON inference server (Python/PyTorch)
+# - LTX-2 video generation server (Python/PyTorch)
+# - PostgreSQL database
+# - Redis cache
+#
+# Usage:
+#   # Development (CPU only)
+#   docker-compose up -d
+#
+#   # Production with GPU support
+#   docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+#
+#   # Build all images
+#   docker-compose build
+#
+# Requirements:
+#   - Docker 24.0+
+#   - Docker Compose v2+
+#   - NVIDIA Container Toolkit (for GPU support)
+#   - 32GB+ RAM recommended
+#   - 50GB+ disk space for models
+#
+# ============================================================================
+
+version: '3.9'
+
+services:
+  # ==========================================================================
+  # Main API Server
+  # ==========================================================================
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: mirrorx-api:latest
+    container_name: mirrorx-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-mirrorx}:${POSTGRES_PASSWORD:-mirrorx}@postgres:5432/${POSTGRES_DB:-mirrorx}
+      - REDIS_URL=redis://redis:6379
+      # IDM-VTON service
+      - IDM_VTON_SERVICE_URL=http://idm-vton:8080
+      - IDM_VTON_TIMEOUT=120000
+      # LTX-2 service
+      - LTX2_SERVICE_URL=http://ltx2:5001
+      - LTX2_TIMEOUT=300000
+      # API Keys (set in .env file)
+      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY:-}
+      - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN:-}
+      - DECART_API_KEY=${DECART_API_KEY:-}
+      - HF_TOKEN=${HF_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      idm-vton:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - api-uploads:/app/uploads
+      - api-cache:/app/.cache
+    networks:
+      - mirrorx-network
+
+  # ==========================================================================
+  # IDM-VTON Inference Server
+  # ==========================================================================
+  idm-vton:
+    build:
+      context: ./services/custom-model
+      dockerfile: Dockerfile
+    image: mirrorx-idmvton:latest
+    container_name: mirrorx-idmvton
+    restart: unless-stopped
+    ports:
+      - "${IDM_VTON_PORT:-8080}:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - IDM_VTON_MODEL_ID=yisol/IDM-VTON
+      - SDXL_BASE_MODEL=stabilityai/stable-diffusion-xl-base-1.0
+      - INFERENCE_STEPS=30
+      - GUIDANCE_SCALE=2.5
+      - MAX_IMAGE_SIZE=1024
+      - ENABLE_XFORMERS=true
+      - ENABLE_VAE_SLICING=true
+      - PRESERVE_FACE_DEFAULT=true
+      - ENABLE_GRADIO_FALLBACK=true
+      - HF_SPACE_ENDPOINT=yisol/IDM-VTON
+      - HF_TOKEN=${HF_TOKEN:-}
+      - TRANSFORMERS_CACHE=/app/models
+      - HF_HOME=/app/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 300s  # Model loading takes time
+    volumes:
+      - idm-vton-models:/app/models
+      - idm-vton-cache:/root/.cache
+      - idm-vton-insightface:/root/.insightface
+    networks:
+      - mirrorx-network
+    # GPU configuration moved to docker-compose.gpu.yml
+    deploy:
+      resources:
+        limits:
+          memory: 32G
+        reservations:
+          memory: 16G
+
+  # ==========================================================================
+  # LTX-2 Video Generation Server
+  # ==========================================================================
+  ltx2:
+    build:
+      context: ./services/video-generation
+      dockerfile: Dockerfile
+    image: mirrorx-ltx2:latest
+    container_name: mirrorx-ltx2
+    restart: unless-stopped
+    ports:
+      - "${LTX2_PORT:-5001}:5001"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5001
+      - BASE_MODEL=Lightricks/LTX-Video
+      - LORA_PATH=/app/lora_weights
+      - MAX_CONCURRENT_JOBS=2
+      - OUTPUT_DIR=/app/outputs
+      - DEFAULT_NUM_FRAMES=80
+      - DEFAULT_INFERENCE_STEPS=40
+      - DEFAULT_GUIDANCE_SCALE=3.0
+      - HF_TOKEN=${HF_TOKEN:-}
+      - HF_HOME=/app/models
+      - TRANSFORMERS_CACHE=/app/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s  # Model loading takes time
+    volumes:
+      - ltx2-models:/app/models
+      - ltx2-outputs:/app/outputs
+      - ltx2-lora:/app/lora_weights
+    networks:
+      - mirrorx-network
+    depends_on:
+      - idm-vton
+    deploy:
+      resources:
+        limits:
+          memory: 24G
+        reservations:
+          memory: 12G
+
+  # ==========================================================================
+  # PostgreSQL Database
+  # ==========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: mirrorx-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-mirrorx}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mirrorx}
+      - POSTGRES_DB=${POSTGRES_DB:-mirrorx}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mirrorx} -d ${POSTGRES_DB:-mirrorx}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - mirrorx-network
+
+  # ==========================================================================
+  # Redis Cache
+  # ==========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: mirrorx-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    networks:
+      - mirrorx-network
+
+# ==========================================================================
+# Networks
+# ==========================================================================
+networks:
+  mirrorx-network:
+    driver: bridge
+    name: mirrorx-network
+
+# ==========================================================================
+# Volumes
+# ==========================================================================
+volumes:
+  # API volumes
+  api-uploads:
+    name: mirrorx-api-uploads
+  api-cache:
+    name: mirrorx-api-cache
+
+  # IDM-VTON volumes
+  idm-vton-models:
+    name: mirrorx-idmvton-models
+  idm-vton-cache:
+    name: mirrorx-idmvton-cache
+  idm-vton-insightface:
+    name: mirrorx-idmvton-insightface
+
+  # LTX-2 volumes
+  ltx2-models:
+    name: mirrorx-ltx2-models
+  ltx2-outputs:
+    name: mirrorx-ltx2-outputs
+  ltx2-lora:
+    name: mirrorx-ltx2-lora
+
+  # Database volumes
+  postgres-data:
+    name: mirrorx-postgres-data
+  redis-data:
+    name: mirrorx-redis-data
