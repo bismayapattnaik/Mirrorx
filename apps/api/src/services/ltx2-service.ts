@@ -78,10 +78,14 @@ export interface LTX2HealthResponse {
 export interface Full360TryOnOptions {
   /** Garment category for IDM-VTON */
   category?: GarmentCategory;
+  /** Alias for category (for backwards compatibility) */
+  garmentCategory?: GarmentCategory;
   /** Whether to preserve face in IDM-VTON */
   preserveFace?: boolean;
   /** LTX-2 generation options */
   videoOptions?: LTX2GenerationOptions;
+  /** Direct prompt (convenience, merged into videoOptions) */
+  prompt?: string;
 }
 
 export interface Full360TryOnResult {
@@ -91,6 +95,8 @@ export interface Full360TryOnResult {
   status: JobStatus;
   /** URL to download the video when complete */
   videoUrl: string | null;
+  /** The VTON result image (base64) */
+  vtonResultImage: string;
   /** Processing time in milliseconds */
   processingTimeMs: number;
   /** Metadata about the generation */
@@ -107,7 +113,7 @@ export interface Full360TryOnResult {
 // Configuration
 // ============================================
 
-interface LTX2Config {
+export interface LTX2Config {
   /** URL of the LTX-2 inference server */
   serviceUrl: string;
   /** Request timeout in milliseconds */
@@ -121,6 +127,9 @@ interface LTX2Config {
   /** Interval between status polls */
   pollIntervalMs: number;
 }
+
+// Alias for backwards compatibility
+export type LTX2ServiceConfig = LTX2Config;
 
 const defaultConfig: LTX2Config = {
   serviceUrl: process.env.LTX2_SERVICE_URL || process.env.LTX_SERVICE_URL || 'http://localhost:5001',
@@ -392,19 +401,30 @@ export class LTX2Service {
    * 1. Calls IDM-VTON to generate the static try-on image
    * 2. Submits the result to LTX-2 for 360° video generation
    *
-   * @param userImageBuffer - User/model photo
-   * @param garmentImageBuffer - Garment image
+   * @param userImageInput - User/model photo (Buffer or base64 string)
+   * @param garmentImageInput - Garment image (Buffer or base64 string)
    * @param options - Pipeline options
-   * @returns Job response with video URL
+   * @returns Job response with video URL and VTON image
    */
   async generate360TryOn(
-    userImageBuffer: Buffer,
-    garmentImageBuffer: Buffer,
+    userImageInput: Buffer | string,
+    garmentImageInput: Buffer | string,
     options: Full360TryOnOptions = {}
   ): Promise<Full360TryOnResult> {
     const startTime = Date.now();
 
     console.log('[LTX-2] Starting full 360° try-on pipeline...');
+
+    // Convert inputs to base64 strings (IDM-VTON expects base64)
+    const userImageBase64 = typeof userImageInput === 'string'
+      ? userImageInput
+      : userImageInput.toString('base64');
+    const garmentImageBase64 = typeof garmentImageInput === 'string'
+      ? garmentImageInput
+      : garmentImageInput.toString('base64');
+
+    // Use garmentCategory as fallback for category
+    const category = options.category || options.garmentCategory || 'upper_body';
 
     // Step 1: Generate static VTON image
     console.log('[LTX-2] Step 1: Generating static VTON image...');
@@ -412,17 +432,20 @@ export class LTX2Service {
     const vtonStartTime = Date.now();
 
     const vtonResult = await idmVtonService.generateTryOn({
-      personImage: userImageBuffer.toString('base64'),
-      garmentImage: garmentImageBuffer.toString('base64'),
-      category: options.category || 'upper_body',
+      personImage: userImageBase64,
+      garmentImage: garmentImageBase64,
+      category,
       preserveFace: options.preserveFace ?? true,
     });
 
     const vtonProcessingTime = Date.now() - vtonStartTime;
     console.log(`[LTX-2] VTON complete in ${vtonProcessingTime}ms`);
 
+    // Store the VTON result image for the response
+    const vtonResultImage = vtonResult.resultImage;
+
     // Extract base64 image data (remove data URI prefix if present)
-    let vtonImageBase64 = vtonResult.resultImage;
+    let vtonImageBase64 = vtonResultImage;
     if (vtonImageBase64.startsWith('data:')) {
       vtonImageBase64 = vtonImageBase64.split(',')[1];
     }
@@ -432,13 +455,18 @@ export class LTX2Service {
     // Step 2: Submit to LTX-2 for video generation
     console.log('[LTX-2] Step 2: Submitting to video generation...');
 
-    const videoOptions = options.videoOptions || {};
+    // Merge prompt into videoOptions if provided directly
+    const videoOptions: LTX2GenerationOptions = {
+      ...options.videoOptions,
+      ...(options.prompt && { prompt: options.prompt }),
+    };
     const job = await this.submitJob(vtonImageBuffer, videoOptions);
 
     return {
       jobId: job.jobId,
       status: job.status,
       videoUrl: job.resultUrl ? `${this.config.serviceUrl}${job.resultUrl}` : null,
+      vtonResultImage,
       processingTimeMs: Date.now() - startTime,
       metadata: {
         vtonImageGenerated: true,
@@ -453,17 +481,17 @@ export class LTX2Service {
   /**
    * Full Pipeline with waiting: Returns video buffer when complete.
    *
-   * @param userImageBuffer - User/model photo
-   * @param garmentImageBuffer - Garment image
+   * @param userImageInput - User/model photo (Buffer or base64 string)
+   * @param garmentImageInput - Garment image (Buffer or base64 string)
    * @param options - Pipeline options
    * @returns Video buffer (MP4)
    */
   async generate360TryOnSync(
-    userImageBuffer: Buffer,
-    garmentImageBuffer: Buffer,
+    userImageInput: Buffer | string,
+    garmentImageInput: Buffer | string,
     options: Full360TryOnOptions = {}
   ): Promise<Buffer> {
-    const result = await this.generate360TryOn(userImageBuffer, garmentImageBuffer, options);
+    const result = await this.generate360TryOn(userImageInput, garmentImageInput, options);
 
     // Wait for completion
     const finalStatus = await this.waitForCompletion(result.jobId);

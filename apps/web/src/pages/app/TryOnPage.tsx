@@ -29,6 +29,7 @@ import { useAppStore } from '@/store/app-store';
 import { useAuthStore } from '@/store/auth-store';
 import { tryOnApi, productApi, wardrobeApi, creditsApi, feedApi } from '@/lib/api';
 import { cn, fileToBase64, isValidImageFile } from '@/lib/utils';
+import Video360Generator from '@/components/Video360Generator';
 
 export default function TryOnPage() {
   const { toast } = useToast();
@@ -746,6 +747,14 @@ export default function TryOnPage() {
                       </p>
                     </div>
                   )}
+
+                  {/* 360° Video Generator */}
+                  <Video360Generator
+                    resultImage={tryOn.resultImage}
+                    hasCredits={(user?.credits_balance || 0) >= 5 || user?.subscription_tier !== 'FREE'}
+                    creditCost={5}
+                    className="mt-4"
+                  />
 
                 </motion.div>
               ) : (

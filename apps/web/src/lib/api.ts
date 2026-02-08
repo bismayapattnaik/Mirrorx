@@ -207,6 +207,98 @@ export const tryOnApi = {
       }),
     });
   },
+
+  // 360° Video Generation API
+  generate360Video: async (
+    imageBase64: string,
+    options?: {
+      prompt?: string;
+      numFrames?: number;
+      numInferenceSteps?: number;
+      guidanceScale?: number;
+    }
+  ): Promise<{
+    job_id: string;
+    status: string;
+    message: string;
+    credits_cost: number;
+    estimated_time_seconds: number;
+  }> => {
+    return fetchWithAuth('/tryon/360', {
+      method: 'POST',
+      body: JSON.stringify({
+        image_base64: imageBase64,
+        prompt: options?.prompt,
+        num_frames: options?.numFrames?.toString(),
+        num_inference_steps: options?.numInferenceSteps?.toString(),
+        guidance_scale: options?.guidanceScale?.toString(),
+      }),
+    });
+  },
+
+  get360VideoStatus: async (jobId: string): Promise<{
+    jobId: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    progress: number;
+    resultUrl: string | null;
+    errorMessage: string | null;
+    processingTimeMs: number | null;
+  }> => {
+    return fetchWithAuth(`/tryon/360/${jobId}`);
+  },
+
+  download360Video: async (jobId: string): Promise<Blob> => {
+    const response = await fetch(`${API_BASE}/tryon/360/${jobId}/download`, {
+      headers: {
+        Authorization: `Bearer ${useAuthStore.getState().session?.access_token}`,
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Failed to download video');
+    }
+    return response.blob();
+  },
+
+  generate360Full: async (
+    selfieImage: File,
+    productImage: File,
+    category: 'upper_body' | 'lower_body' | 'dress' = 'upper_body',
+    prompt?: string
+  ): Promise<{
+    job_id: string;
+    status: string;
+    vton_image: string;
+    message: string;
+    credits_cost: number;
+    metadata: {
+      vtonImageGenerated: boolean;
+      vtonProcessingTimeMs: number;
+      numFrames: number;
+      resolution: string;
+    };
+  }> => {
+    const formData = new FormData();
+    formData.append('selfie_image', selfieImage);
+    formData.append('product_image', productImage);
+    formData.append('category', category);
+    if (prompt) {
+      formData.append('prompt', prompt);
+    }
+
+    return fetchWithAuth('/tryon/360/full', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  check360Health: async (): Promise<{
+    status: 'healthy' | 'unhealthy';
+    modelLoaded: boolean;
+    gpuAvailable: boolean;
+    gpuName: string | null;
+  }> => {
+    return fetchWithAuth('/tryon/360/health');
+  },
 };
 
 // Product API
