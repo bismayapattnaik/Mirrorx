@@ -83,10 +83,12 @@ class LTX2Generator:
         os.environ["HF_HOME"] = cache_dir
         os.environ["TRANSFORMERS_CACHE"] = cache_dir
 
-        # Load pipeline
+        # Load LTX-2 pipeline from official repo
+        # GitHub: https://github.com/Lightricks/LTX-2.git
         try:
+            # Try loading from HuggingFace (preferred for Modal)
             self.pipeline = DiffusionPipeline.from_pretrained(
-                "Lightricks/LTX-Video",
+                "Lightricks/LTX-Video",  # Official HF model
                 torch_dtype=torch.float16,
                 cache_dir=cache_dir,
             )

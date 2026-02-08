@@ -100,19 +100,28 @@ IDM_VTON_SERVICE_URL=https://yisol-idm-vton.hf.space
 IDM_VTON_ENABLE_FALLBACK=true
 IDM_VTON_TIMEOUT=180000
 
-# LTX-2 (set after deploying to Modal/Replicate)
-LTX2_SERVICE_URL=<your-modal-or-replicate-endpoint>
+# LTX-2 (open source - https://github.com/Lightricks/LTX-2.git)
+# Set after deploying to Modal
+LTX2_SERVICE_URL=<your-modal-endpoint>
 LTX2_TIMEOUT=300000
+
+# HuggingFace Token (for model downloads)
+# Get yours at: https://huggingface.co/settings/tokens
+HF_TOKEN=<your-huggingface-token>
 
 # API Keys
 GOOGLE_AI_API_KEY=<your-key>
-HF_TOKEN=<your-huggingface-token>
 JWT_SECRET=<generate-secure-random-string>
 
 # Optional
 REPLICATE_API_TOKEN=<if-using-replicate>
 DECART_API_KEY=<if-using-decart>
 ```
+
+**Note on LTX-2**: LTX-2 is fully open source!
+- GitHub: https://github.com/Lightricks/LTX-2.git
+- HuggingFace: Lightricks/LTX-Video
+- No API key required - just deploy to Modal for GPU inference
 
 ---
 

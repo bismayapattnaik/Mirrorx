@@ -254,7 +254,19 @@ PYTHON_SCRIPT
 download_ltx2_models() {
     log_info "Downloading LTX-2 models..."
 
-    # Create Python download script
+    # Option 1: Clone LTX-2 from GitHub (for local development)
+    log_info "Cloning LTX-2 from GitHub..."
+    if [ ! -d "$LTX2_DIR/LTX-2" ]; then
+        git clone https://github.com/Lightricks/LTX-2.git "$LTX2_DIR/LTX-2" || {
+            log_warning "Git clone failed, will download from HuggingFace instead"
+        }
+    else
+        log_info "LTX-2 repo already exists, pulling latest..."
+        cd "$LTX2_DIR/LTX-2" && git pull
+        cd "$PROJECT_ROOT"
+    fi
+
+    # Option 2: Download model weights from HuggingFace
     cat > /tmp/download_ltx2.py << 'PYTHON_SCRIPT'
 import os
 import sys
@@ -265,8 +277,9 @@ os.makedirs(cache_dir, exist_ok=True)
 
 print(f"Downloading to: {cache_dir}")
 
-# Download LTX-Video model
-print("\n[1/2] Downloading LTX-Video base model...")
+# Download LTX-Video model weights from HuggingFace
+# GitHub repo: https://github.com/Lightricks/LTX-2.git
+print("\n[1/2] Downloading LTX-2 model weights from HuggingFace...")
 try:
     snapshot_download(
         "Lightricks/LTX-Video",
@@ -295,6 +308,7 @@ except Exception as e:
     print(f"Warning: Could not download T5-XXL: {e}")
 
 print("\nLTX-2 models download complete!")
+print("\nNote: LTX-2 is open source - https://github.com/Lightricks/LTX-2.git")
 PYTHON_SCRIPT
 
     python3 /tmp/download_ltx2.py "$LTX2_DIR"
