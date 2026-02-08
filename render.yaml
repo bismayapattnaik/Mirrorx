@@ -1,0 +1,83 @@
+# Render Blueprint - MirrorX Backend Deployment
+# https://render.com/docs/blueprint-spec
+#
+# This deploys the main API to Render. For GPU services (IDM-VTON, LTX-2),
+# we use external providers (HuggingFace Spaces, Replicate, or Modal).
+#
+# Deploy: Connect your repo to Render and it will auto-detect this file.
+
+services:
+  # ==========================================================================
+  # Main API Server (Node.js)
+  # ==========================================================================
+  - type: web
+    name: mirrorx-api
+    runtime: node
+    region: oregon  # or your preferred region
+    plan: starter  # starter, standard, or pro
+    buildCommand: |
+      cd apps/api && npm install && npm run build
+    startCommand: |
+      cd apps/api && npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      # Database (auto-populated if using Render PostgreSQL)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mirrorx-db
+          property: connectionString
+      # Redis
+      - key: REDIS_URL
+        fromService:
+          name: mirrorx-redis
+          type: redis
+          property: connectionString
+      # IDM-VTON - Use HuggingFace Space fallback since Render has no GPU
+      - key: IDM_VTON_SERVICE_URL
+        value: https://yisol-idm-vton.hf.space
+      - key: IDM_VTON_ENABLE_FALLBACK
+        value: "true"
+      - key: IDM_VTON_TIMEOUT
+        value: "180000"
+      # LTX-2 - Use external service (Modal/RunPod/Replicate)
+      - key: LTX2_SERVICE_URL
+        sync: false  # Set manually after deploying GPU service
+      - key: LTX2_TIMEOUT
+        value: "300000"
+      # API Keys - Set these in Render dashboard
+      - key: GOOGLE_AI_API_KEY
+        sync: false
+      - key: REPLICATE_API_TOKEN
+        sync: false
+      - key: DECART_API_KEY
+        sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # ==========================================================================
+  # Redis Cache
+  # ==========================================================================
+  - type: redis
+    name: mirrorx-redis
+    region: oregon
+    plan: starter  # starter or standard
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []  # Allow all (internal network)
+
+# ==========================================================================
+# PostgreSQL Database
+# ==========================================================================
+databases:
+  - name: mirrorx-db
+    region: oregon
+    plan: starter  # starter, standard, or pro
+    databaseName: mirrorx
+    user: mirrorx
+    ipAllowList: []  # Allow all (internal network)

@@ -123,12 +123,18 @@ interface LTX2Config {
 }
 
 const defaultConfig: LTX2Config = {
-  serviceUrl: process.env.LTX_SERVICE_URL || 'http://localhost:5001',
-  timeout: parseInt(process.env.LTX_TIMEOUT || '300000', 10), // 5 minutes
-  maxRetries: parseInt(process.env.LTX_MAX_RETRIES || '3', 10),
-  retryDelayMs: parseInt(process.env.LTX_RETRY_DELAY || '2000', 10),
-  maxWaitTimeMs: parseInt(process.env.LTX_MAX_WAIT_TIME || '600000', 10), // 10 minutes
-  pollIntervalMs: parseInt(process.env.LTX_POLL_INTERVAL || '5000', 10), // 5 seconds
+  serviceUrl: process.env.LTX2_SERVICE_URL || process.env.LTX_SERVICE_URL || 'http://localhost:5001',
+  timeout: parseInt(process.env.LTX2_TIMEOUT || process.env.LTX_TIMEOUT || '300000', 10), // 5 minutes
+  maxRetries: parseInt(process.env.LTX2_MAX_RETRIES || process.env.LTX_MAX_RETRIES || '3', 10),
+  retryDelayMs: parseInt(process.env.LTX2_RETRY_DELAY || process.env.LTX_RETRY_DELAY || '2000', 10),
+  maxWaitTimeMs: parseInt(process.env.LTX2_MAX_WAIT_TIME || process.env.LTX_MAX_WAIT_TIME || '600000', 10), // 10 minutes
+  pollIntervalMs: parseInt(process.env.LTX2_POLL_INTERVAL || process.env.LTX_POLL_INTERVAL || '5000', 10), // 5 seconds
+};
+
+// Check if using Modal deployment (URL contains .modal.run)
+const isModalDeployment = (): boolean => {
+  const url = process.env.LTX2_SERVICE_URL || process.env.LTX_SERVICE_URL || '';
+  return url.includes('.modal.run');
 };
 
 // Default generation options
@@ -172,16 +178,26 @@ export class LTX2Service {
   // ============================================
 
   /**
-   * Submit a 360-degree video generation job from an image buffer.
+   * Submit a 360-degree video generation job from an image (base64 or buffer).
+   * Supports both self-hosted and Modal deployment formats.
    *
-   * @param imageBuffer - Input image buffer (PNG/JPEG)
+   * @param imageInput - Input image as base64 string or Buffer
    * @param options - Generation options
    * @returns Job response with ID for status tracking
    */
   async submitJob(
-    imageBuffer: Buffer,
+    imageInput: Buffer | string,
     options: LTX2GenerationOptions = {}
   ): Promise<LTX2JobResponse> {
+    // Handle Modal deployment (synchronous, JSON-based)
+    if (isModalDeployment()) {
+      return this.submitJobModal(imageInput, options);
+    }
+
+    // Self-hosted deployment (async, FormData-based)
+    const imageBuffer = typeof imageInput === 'string'
+      ? Buffer.from(imageInput.includes(',') ? imageInput.split(',')[1] : imageInput, 'base64')
+      : imageInput;
     const mergedOptions = { ...defaultGenerationOptions, ...options };
 
     const formData = new FormData();
@@ -310,6 +326,17 @@ export class LTX2Service {
    * @returns Video buffer (MP4)
    */
   async downloadVideo(jobId: string): Promise<Buffer> {
+    // Check if this is a Modal job (stored in cache)
+    if (jobId.startsWith('modal-') && this.modalVideoCache.has(jobId)) {
+      const videoBase64 = this.modalVideoCache.get(jobId)!;
+      // Remove data URI prefix if present
+      const base64Data = videoBase64.includes(',') ? videoBase64.split(',')[1] : videoBase64;
+      // Optionally delete from cache after download
+      this.modalVideoCache.delete(jobId);
+      return Buffer.from(base64Data, 'base64');
+    }
+
+    // Self-hosted: fetch from server
     const response = await this.client.get(`/download/${jobId}`, {
       responseType: 'arraybuffer',
     });
@@ -550,6 +577,102 @@ export class LTX2Service {
     await this.client.delete(`/job/${jobId}`);
     console.log(`[LTX-2] Job ${jobId} deleted`);
   }
+
+  /**
+   * Submit job to Modal deployment (synchronous, returns video directly).
+   */
+  private async submitJobModal(
+    imageInput: Buffer | string,
+    options: LTX2GenerationOptions = {}
+  ): Promise<LTX2JobResponse> {
+    const mergedOptions = { ...defaultGenerationOptions, ...options };
+    const jobId = `modal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Convert to base64 if buffer
+    let imageBase64: string;
+    if (typeof imageInput === 'string') {
+      imageBase64 = imageInput.includes(',') ? imageInput : `data:image/jpeg;base64,${imageInput}`;
+    } else {
+      imageBase64 = `data:image/jpeg;base64,${imageInput.toString('base64')}`;
+    }
+
+    console.log(`[LTX-2/Modal] Submitting job ${jobId}...`);
+
+    try {
+      const response = await this.client.post<{
+        video_base64?: string;
+        status: string;
+        error?: string;
+        metadata?: {
+          num_frames?: number;
+          resolution?: string;
+          processing_time_ms?: number;
+        };
+      }>('', {
+        image_base64: imageBase64,
+        prompt: mergedOptions.prompt,
+        negative_prompt: mergedOptions.negativePrompt,
+        num_frames: mergedOptions.numFrames,
+        num_inference_steps: mergedOptions.numInferenceSteps,
+        guidance_scale: mergedOptions.guidanceScale,
+        width: mergedOptions.width,
+        height: mergedOptions.height,
+        seed: mergedOptions.seed,
+      }, {
+        timeout: this.config.timeout,
+      });
+
+      if (response.data.status === 'completed' && response.data.video_base64) {
+        // Store video in memory for download (in production, use Redis or S3)
+        this.modalVideoCache.set(jobId, response.data.video_base64);
+
+        return {
+          jobId,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          progress: 1,
+          resultUrl: `/download/${jobId}`,
+          errorMessage: null,
+          processingTimeMs: response.data.metadata?.processing_time_ms || null,
+          metadata: {
+            numFrames: response.data.metadata?.num_frames,
+            resolution: response.data.metadata?.resolution,
+          },
+        };
+      } else {
+        return {
+          jobId,
+          status: 'failed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          progress: 0,
+          resultUrl: null,
+          errorMessage: response.data.error || 'Unknown error',
+          processingTimeMs: null,
+          metadata: null,
+        };
+      }
+    } catch (error) {
+      const err = error as Error;
+      console.error('[LTX-2/Modal] Generation failed:', err.message);
+
+      return {
+        jobId,
+        status: 'failed',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        progress: 0,
+        resultUrl: null,
+        errorMessage: err.message,
+        processingTimeMs: null,
+        metadata: null,
+      };
+    }
+  }
+
+  // Cache for Modal video results (in production, use Redis)
+  private modalVideoCache: Map<string, string> = new Map();
 
   // ============================================
   // Private Methods
