@@ -1,15 +1,24 @@
-# MirrorX Custom Try-On Model Requirements
-# For low-cost, high-quality virtual try-on
+# MirrorX IDM-VTON Virtual Try-On Requirements
+# State-of-the-Art open-source model for 100% garment detail preservation
+#
+# Hardware: 16GB-24GB VRAM GPU recommended (RTX 3090/4090 or A10G)
+# License: CC-BY-NC-SA 4.0 (non-commercial), check terms for commercial use
 
 # Core ML frameworks
-torch>=2.1.0
-torchvision>=0.16.0
-diffusers>=0.25.0
+torch>=2.0.0
+torchvision>=0.15.0
+diffusers>=0.26.0
 transformers>=4.36.0
 accelerate>=0.25.0
 safetensors>=0.4.0
 
-# Face preservation stack
+# IDM-VTON specific dependencies
+xformers>=0.0.23  # Memory-efficient attention
+einops>=0.7.0     # Tensor operations
+omegaconf>=2.3.0  # Config management
+scipy>=1.11.0     # Image processing utilities
+
+# Face preservation stack (100% face fidelity)
 insightface>=0.7.3
 onnxruntime-gpu>=1.16.0
 
@@ -17,24 +26,43 @@ onnxruntime-gpu>=1.16.0
 opencv-python>=4.8.0
 Pillow>=10.0.0
 numpy>=1.24.0
+scikit-image>=0.22.0  # For image quality metrics
 
-# Pose estimation
+# Pose estimation and body segmentation
 mediapipe>=0.10.8
+segment-anything>=1.0  # SAM for precise masking
 
-# LoRA fine-tuning (cost-effective training)
-peft>=0.7.0
-bitsandbytes>=0.41.0
+# DensePose for body parsing (optional but recommended)
+# Note: Requires separate installation from detectron2
+# detectron2 @ git+https://github.com/facebookresearch/detectron2.git
+
+# CLIP for garment encoding
+open_clip_torch>=2.24.0
 
 # API server
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 python-multipart>=0.0.6
 
+# Hugging Face hub for model downloads
+huggingface_hub>=0.20.0
+
 # Utilities
 tqdm>=4.66.0
 requests>=2.31.0
 aiohttp>=3.9.0
+pydantic>=2.5.0
+
+# Redis for caching (optional)
+redis>=5.0.0
+
+# Gradio client for fallback to HF Space
+gradio_client>=0.10.0
 
 # Optional: TensorRT for 2-3x faster inference
 # tensorrt>=8.6.0
 # torch-tensorrt>=1.4.0
+
+# Optional: CatVTON alternative (faster, lighter)
+# Uncomment if you want to use CatVTON instead of IDM-VTON
+# catvton @ git+https://github.com/Zheng-Chong/CatVTON.git

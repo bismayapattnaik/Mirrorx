@@ -1,18 +1,36 @@
-# MirrorX Custom Try-On Model - Docker Compose
-# Usage: docker-compose up -d
+# MirrorX IDM-VTON - Docker Compose Configuration
+#
+# Production stack for IDM-VTON virtual try-on service
+#
+# Usage:
+#   docker-compose up -d                    # Start all services
+#   docker-compose up -d mirrorx-idmvton    # Start only IDM-VTON
+#   docker-compose logs -f mirrorx-idmvton  # View logs
+#   docker-compose down                     # Stop all services
+#
+# Prerequisites:
+#   - NVIDIA Docker runtime installed
+#   - GPU with 16GB+ VRAM
+#   - Docker Compose v2.x
 
 version: '3.8'
 
 services:
-  mirrorx-tryon:
+  # ============================================
+  # IDM-VTON Inference Server
+  # ============================================
+  mirrorx-idmvton:
     build:
       context: .
       dockerfile: Dockerfile
-    image: mirrorx-tryon:latest
-    container_name: mirrorx-tryon
+      args:
+        PYTHON_VERSION: "3.10"
+        PYTORCH_CUDA: "cu121"
+    image: mirrorx-idmvton:latest
+    container_name: mirrorx-idmvton
     restart: unless-stopped
 
-    # GPU access
+    # GPU access - requires nvidia-docker runtime
     deploy:
       resources:
         reservations:
@@ -20,39 +38,82 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+        limits:
+          memory: 32G  # Limit container memory
 
     ports:
       - "8080:8080"
 
     environment:
+      # CUDA configuration
       - CUDA_VISIBLE_DEVICES=0
       - PYTHONUNBUFFERED=1
-      # Model configuration
-      - MODEL_PRECISION=fp16
-      - MAX_BATCH_SIZE=1
-      - INFERENCE_STEPS=25
+
+      # IDM-VTON Model configuration
+      - IDM_VTON_MODEL_ID=yisol/IDM-VTON
+      - SDXL_BASE_MODEL=stabilityai/stable-diffusion-xl-base-1.0
+      - CLIP_MODEL_ID=openai/clip-vit-large-patch14
+
+      # Inference settings
+      - INFERENCE_STEPS=30
+      - GUIDANCE_SCALE=2.5
+      - DENOISE_STRENGTH=1.0
+
+      # Image settings
+      - MAX_IMAGE_SIZE=1024
+      - OUTPUT_FORMAT=PNG
+      - OUTPUT_QUALITY=95
+
+      # Optimization settings
+      - ENABLE_XFORMERS=true
+      - ENABLE_VAE_SLICING=true
+
+      # Face preservation
+      - PRESERVE_FACE_DEFAULT=true
+      - FACE_SIMILARITY_THRESHOLD=0.5
+
+      # Gradio fallback (HF Space)
+      - ENABLE_GRADIO_FALLBACK=true
+      - HF_SPACE_ENDPOINT=yisol/IDM-VTON
+
+      # Server settings
+      - HOST=0.0.0.0
+      - PORT=8080
+
+      # Hugging Face token (optional, for private models)
+      # - HF_TOKEN=${HF_TOKEN}
 
     volumes:
-      # Persist model cache to avoid re-downloading
-      - model_cache:/root/.cache/huggingface
+      # Persist model cache to avoid re-downloading on restart
+      - huggingface_cache:/root/.cache/huggingface
+      - torch_cache:/root/.cache/torch
       - insightface_cache:/root/.insightface/models
-      # Optional: Mount custom fine-tuned models
+
+      # Optional: Mount logs directory
+      - ./logs:/app/logs
+
+      # Optional: Mount custom models (for fine-tuned models)
       # - ./custom_models:/app/custom_models
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
-      timeout: 10s
+      timeout: 15s
       retries: 3
-      start_period: 120s
+      start_period: 300s  # 5 minutes for model loading
 
     logging:
       driver: json-file
       options:
         max-size: "100m"
-        max-file: "3"
+        max-file: "5"
 
-  # Optional: Redis for caching face embeddings
+    networks:
+      - mirrorx-network
+
+  # ============================================
+  # Redis (Optional) - For caching and queue
+  # ============================================
   redis:
     image: redis:7-alpine
     container_name: mirrorx-redis
@@ -61,20 +122,78 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - mirrorx-network
 
+  # ============================================
+  # Prometheus (Optional) - For monitoring
+  # ============================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mirrorx-prometheus
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    networks:
+      - mirrorx-network
+
+  # ============================================
+  # Grafana (Optional) - For dashboards
+  # ============================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mirrorx-grafana
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - mirrorx-network
+
+# ============================================
+# Volumes
+# ============================================
 volumes:
-  model_cache:
+  huggingface_cache:
+    driver: local
+  torch_cache:
     driver: local
   insightface_cache:
     driver: local
   redis_data:
     driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
 
+# ============================================
+# Networks
+# ============================================
 networks:
-  default:
+  mirrorx-network:
     name: mirrorx-network
+    driver: bridge

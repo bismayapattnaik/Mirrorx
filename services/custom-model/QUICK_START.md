@@ -1,23 +1,50 @@
-# MirrorX Custom Model - Quick Start Guide
+# MirrorX IDM-VTON - Quick Start Guide
 
-## 5-Minute Setup (Cloud GPU)
+## Overview
 
-The fastest way to test your own model using RunPod or Vast.ai:
+This service implements **IDM-VTON** (Image-based Virtual Try-On Network), the current state-of-the-art open-source model for virtual try-on. It significantly outperforms older GAN-based models (like VITON-HD) and standard Stable Diffusion in preserving:
 
-### Step 1: Rent a GPU (~$0.40/hr)
+- **Garment details**: Logos, textures, patterns, text on shirts
+- **Face fidelity**: 100% face preservation using InsightFace
+- **Body poses**: Complex and natural poses
+
+## Hardware Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| GPU VRAM | 16GB | 24GB |
+| GPU | RTX 3090 | RTX 4090 / A10G |
+| RAM | 16GB | 32GB |
+| Storage | 30GB | 50GB |
+| CUDA | 12.1+ | 12.1+ |
+
+---
+
+## Quick Start (5 Minutes)
+
+### Option 1: Docker (Recommended)
+
+```bash
+# Navigate to custom-model directory
+cd services/custom-model
+
+# Build and run with Docker Compose
+docker-compose up -d
+
+# Check logs
+docker-compose logs -f mirrorx-idmvton
+
+# Verify health
+curl http://localhost:8080/health
+```
+
+### Option 2: Cloud GPU (RunPod/Vast.ai)
 
 **RunPod:**
 1. Go to https://runpod.io
 2. Select: RTX 4090 (24GB VRAM) - ~$0.40/hr
-3. Choose template: "RunPod Pytorch 2.1"
+3. Choose template: "RunPod PyTorch 2.1"
 4. Start instance
-
-**Vast.ai:**
-1. Go to https://vast.ai
-2. Filter: RTX 4090, PyTorch
-3. Rent instance
-
-### Step 2: Clone and Setup
 
 ```bash
 # SSH into your instance
@@ -27,47 +54,11 @@ ssh root@<instance-ip>
 git clone https://github.com/your-repo/Mirrorx.git
 cd Mirrorx/services/custom-model
 
-# Make setup executable and run
-chmod +x setup.sh
-./setup.sh
+# Run with Docker
+docker-compose up -d
 ```
 
-### Step 3: Run Server
-
-```bash
-source .venv/bin/activate
-python inference_server.py
-```
-
-Server will be available at `http://<instance-ip>:8080`
-
-### Step 4: Test
-
-```bash
-# Health check
-curl http://localhost:8080/health
-
-# Test try-on (with base64 images)
-curl -X POST http://localhost:8080/tryon \
-  -H "Content-Type: application/json" \
-  -d '{
-    "person_image": "<base64-person-image>",
-    "cloth_image": "<base64-cloth-image>",
-    "preserve_face": true
-  }'
-```
-
----
-
-## Local Development Setup
-
-### Requirements
-- NVIDIA GPU with 12GB+ VRAM (RTX 3060 minimum, 4090 recommended)
-- Ubuntu 20.04+ or Windows with WSL2
-- CUDA 12.1+
-- Python 3.10+
-
-### Setup
+### Option 3: Local Development
 
 ```bash
 cd services/custom-model
@@ -76,8 +67,10 @@ cd services/custom-model
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install dependencies
+# Install PyTorch with CUDA
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+
+# Install dependencies
 pip install -r requirements.txt
 
 # Run server
@@ -86,124 +79,397 @@ python inference_server.py
 
 ---
 
-## Production Deployment
+## API Reference
 
-### Docker (Recommended)
-
-```bash
-# Build image
-docker build -t mirrorx-tryon .
-
-# Run with GPU
-docker run --gpus all -p 8080:8080 mirrorx-tryon
-
-# Or use docker-compose
-docker-compose up -d
-```
-
-### Kubernetes
-
-See `docs/CUSTOM_AI_MODEL_ROADMAP.md` for full Kubernetes deployment configuration.
-
----
-
-## Upgrade Path: Better Models
-
-The starter uses Stable Diffusion Inpainting. For production, upgrade to:
-
-### Option 1: IDM-VTON (Recommended)
+### Health Check
 
 ```bash
-# Clone IDM-VTON
-git clone https://github.com/yisol/IDM-VTON.git
+GET /health
 
-# Download checkpoints
-# See: https://github.com/yisol/IDM-VTON#download-checkpoints
-
-# Update inference_server.py to use IDM-VTON pipeline
+Response:
+{
+  "status": "healthy",
+  "models_loaded": {
+    "face_analyzer": true,
+    "face_swapper": true,
+    "pose_estimator": true,
+    "image_encoder": true,
+    "tryon_pipeline": true,
+    "gradio_client": true
+  },
+  "gpu_available": true,
+  "gpu_name": "NVIDIA GeForce RTX 4090",
+  "gpu_memory_gb": 24.0,
+  "version": "2.0.0-idmvton"
+}
 ```
 
-### Option 2: OOTDiffusion
+### Generate Try-On (Base64)
 
 ```bash
-# Clone OOTDiffusion
-git clone https://github.com/levihsu/OOTDiffusion.git
+POST /tryon
+Content-Type: application/json
 
-# Download checkpoints
-# See: https://github.com/levihsu/OOTDiffusion#checkpoints
+{
+  "person_image": "data:image/jpeg;base64,<base64-encoded-image>",
+  "garment_image": "data:image/jpeg;base64,<base64-encoded-image>",
+  "category": "upper_body",  # upper_body | lower_body | dress
+  "preserve_face": true,
+  "num_inference_steps": 30,
+  "guidance_scale": 2.5,
+  "denoise_strength": 1.0
+}
+
+Response:
+{
+  "result_image": "data:image/png;base64,<base64-encoded-result>",
+  "metadata": {
+    "face_preserved": true,
+    "model_used": "idm-vton",
+    "pipeline_steps": ["face_extracted", "mask_created", "tryon_generated", "face_restored"],
+    "garment_category": "upper_body",
+    "processing_time_ms": 15234
+  }
+}
 ```
 
----
+### Generate Try-On (File Upload)
 
-## Integration with MirrorX API
+```bash
+POST /tryon/upload
+Content-Type: multipart/form-data
 
-Update your existing API to use the custom model:
+person_image: <file>
+garment_image: <file>
+category: upper_body
+preserve_face: true
+num_inference_steps: 30
+guidance_scale: 2.5
+```
 
-```typescript
-// apps/api/src/services/custom-tryon.ts
+### List Loaded Models
 
-const CUSTOM_MODEL_URL = process.env.CUSTOM_MODEL_URL || 'http://localhost:8080';
+```bash
+GET /models
 
-export async function generateCustomTryOn(
-  personBase64: string,
-  clothBase64: string
-): Promise<string> {
-  const response = await fetch(`${CUSTOM_MODEL_URL}/tryon`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      person_image: personBase64,
-      cloth_image: clothBase64,
-      preserve_face: true
-    })
-  });
-
-  const result = await response.json();
-  return result.result_image;
+Response:
+{
+  "models": {
+    "face_analyzer": {"loaded": true, "type": "FaceAnalysis"},
+    "face_swapper": {"loaded": true, "type": "INSwapper"},
+    "pose_estimator": {"loaded": true, "type": "Pose"},
+    "image_encoder": {"loaded": true, "type": "dict"},
+    "tryon_pipeline": {"loaded": true, "type": "StableDiffusionInpaintPipeline"},
+    "gradio_client": {"loaded": true, "type": "Client"}
+  },
+  "config": {
+    "idm_vton_model": "yisol/IDM-VTON",
+    "inference_steps": 30,
+    "guidance_scale": 2.5,
+    "device": "cuda"
+  }
 }
 ```
 
 ---
 
-## Cost Calculator
+## Node.js Integration
 
-| Volume | Gemini Cost | Self-Hosted Cost | Savings |
-|--------|-------------|------------------|---------|
-| 1,000/mo | $20-50 | $100 (server) | -$50 |
-| 5,000/mo | $100-250 | $100 (server) | $0-150 |
-| 10,000/mo | $200-500 | $100 (server) | $100-400 |
-| 50,000/mo | $1,000-2,500 | $200 (server) | $800-2,300 |
+Use the provided TypeScript service to integrate with your Node.js backend:
 
-**Break-even point: ~5,000 try-ons/month**
+```typescript
+// Import the service
+import { idmVtonService, generateIDMVTONImage } from './services/idm-vton-service';
+
+// Option 1: Using the service class
+const result = await idmVtonService.generateTryOn({
+  personImage: personBase64,
+  garmentImage: garmentBase64,
+  category: 'upper_body',
+  preserveFace: true,
+});
+
+console.log('Result:', result.resultImage);
+console.log('Face preserved:', result.metadata.facePreserved);
+
+// Option 2: Using the convenience function
+const resultImage = await generateIDMVTONImage(
+  personBase64,
+  garmentBase64,
+  'upper_body',
+  true
+);
+
+// Option 3: Using the hybrid service (IDM-VTON + Gemini fallback)
+import { hybridIdmVtonService } from './services/idm-vton-service';
+
+const result = await hybridIdmVtonService.generateTryOn(
+  personBase64,
+  garmentBase64,
+  { category: 'upper_body', preserveFace: true }
+);
+
+console.log('Source:', result.source); // 'idm-vton' or 'gemini'
+```
+
+### Environment Variables
+
+Configure the Node.js service with these environment variables:
+
+```bash
+# IDM-VTON Service URL
+IDM_VTON_SERVICE_URL=http://localhost:8080
+
+# Request timeout (ms)
+IDM_VTON_TIMEOUT=180000
+
+# Retry configuration
+IDM_VTON_MAX_RETRIES=3
+IDM_VTON_RETRY_DELAY=2000
+
+# Enable HF Space fallback
+IDM_VTON_ENABLE_FALLBACK=true
+```
+
+---
+
+## Configuration
+
+### Python Server Environment Variables
+
+```bash
+# Model Configuration
+IDM_VTON_MODEL_ID=yisol/IDM-VTON
+SDXL_BASE_MODEL=stabilityai/stable-diffusion-xl-base-1.0
+CLIP_MODEL_ID=openai/clip-vit-large-patch14
+
+# Inference Settings
+INFERENCE_STEPS=30        # 10-50, higher = better quality, slower
+GUIDANCE_SCALE=2.5        # 1-10, higher = more prompt adherence
+DENOISE_STRENGTH=1.0      # 0.5-1.0, higher = more changes
+
+# Image Settings
+MAX_IMAGE_SIZE=1024       # Max dimension for input images
+OUTPUT_FORMAT=PNG         # PNG or JPEG
+OUTPUT_QUALITY=95         # JPEG quality (if using JPEG)
+
+# Optimization
+ENABLE_XFORMERS=true      # Memory-efficient attention
+ENABLE_VAE_SLICING=true   # Reduces VRAM usage
+
+# Face Preservation
+PRESERVE_FACE_DEFAULT=true
+FACE_SIMILARITY_THRESHOLD=0.5
+
+# Fallback
+ENABLE_GRADIO_FALLBACK=true
+HF_SPACE_ENDPOINT=yisol/IDM-VTON
+
+# Server
+HOST=0.0.0.0
+PORT=8080
+```
+
+---
+
+## Architecture
+
+### Pipeline Flow
+
+```
+USER INPUT (selfie + garment)
+    ↓
+[1. FACE EXTRACTION]
+  └─ InsightFace extracts face from original image
+    ↓
+[2. BODY MASK GENERATION]
+  └─ MediaPipe detects pose landmarks
+  └─ Creates mask based on garment category
+    ↓
+[3. IMAGE PREPARATION]
+  └─ Resize to 768x1024 (IDM-VTON input size)
+  └─ Prepare garment image
+    ↓
+[4. IDM-VTON GENERATION]
+  └─ TryonNet encodes garment features separately
+  └─ Preserves high-frequency details (textures, logos)
+  └─ Generates person wearing garment
+    ↓
+[5. FACE RESTORATION]
+  └─ InsightFace detects face in generated image
+  └─ Face swapper overlays original face
+  └─ 100% face fidelity guaranteed
+    ↓
+OUTPUT: High-quality try-on image
+```
+
+### Models Used
+
+| Model | Purpose | Size | License |
+|-------|---------|------|---------|
+| IDM-VTON | Virtual try-on generation | ~15GB | CC-BY-NC-SA 4.0 |
+| InsightFace | Face detection/embedding | ~500MB | MIT |
+| inswapper_128 | Face swapping | ~500MB | MIT |
+| MediaPipe | Pose estimation | ~50MB | Apache 2.0 |
+| CLIP | Image encoding | ~600MB | MIT |
+
+---
+
+## Performance Tuning
+
+### For Faster Inference
+
+```bash
+# Reduce inference steps (faster, slightly lower quality)
+INFERENCE_STEPS=20
+
+# Use lower resolution
+MAX_IMAGE_SIZE=768
+
+# Enable all optimizations
+ENABLE_XFORMERS=true
+ENABLE_VAE_SLICING=true
+```
+
+### For Better Quality
+
+```bash
+# Increase inference steps
+INFERENCE_STEPS=40
+
+# Higher resolution
+MAX_IMAGE_SIZE=1024
+
+# Fine-tune guidance
+GUIDANCE_SCALE=3.0
+```
+
+### For Lower VRAM Usage
+
+```bash
+# Enable CPU offloading in inference_server.py
+# Uncomment: pipe.enable_model_cpu_offload()
+
+# Use VAE slicing
+ENABLE_VAE_SLICING=true
+
+# Reduce batch size
+MAX_BATCH_SIZE=1
+```
+
+---
+
+## Monitoring
+
+### Enable Prometheus + Grafana
+
+```bash
+# Start with monitoring profile
+docker-compose --profile monitoring up -d
+
+# Access Grafana
+open http://localhost:3001
+# Login: admin / admin
+```
+
+### View Logs
+
+```bash
+# Docker logs
+docker-compose logs -f mirrorx-idmvton
+
+# Application logs
+tail -f logs/inference.log
+```
 
 ---
 
 ## Troubleshooting
 
 ### CUDA Out of Memory
+
 ```bash
-# Reduce batch size and use CPU offloading
-export MODEL_PRECISION=fp16
-export MAX_BATCH_SIZE=1
+# 1. Reduce image size
+MAX_IMAGE_SIZE=768
+
+# 2. Enable memory optimizations
+ENABLE_XFORMERS=true
+ENABLE_VAE_SLICING=true
+
+# 3. Clear GPU memory
+nvidia-smi --gpu-reset
 ```
 
-### Models not loading
+### Models Not Loading
+
 ```bash
 # Clear cache and re-download
 rm -rf ~/.cache/huggingface
 rm -rf ~/.insightface
-python inference_server.py
+docker-compose down -v
+docker-compose up -d
 ```
 
-### Face not preserved
-- Ensure InsightFace and face swapper models are loaded
-- Check if face is clearly visible in input image
-- Front-facing photos work best
+### Face Not Preserved
+
+1. Ensure face is clearly visible in input image
+2. Front-facing photos work best
+3. Check if InsightFace models are loaded: `curl http://localhost:8080/models`
+
+### Connection Refused
+
+```bash
+# Check if server is running
+docker-compose ps
+
+# Check server logs
+docker-compose logs mirrorx-idmvton
+
+# Verify port is exposed
+curl http://localhost:8080/health
+```
+
+### Slow First Request
+
+The first request downloads model weights (~15GB). Subsequent requests are much faster.
+
+To pre-download models, uncomment the model download sections in `Dockerfile` and rebuild.
+
+---
+
+## Alternative: CatVTON (Faster)
+
+If IDM-VTON is too slow, switch to CatVTON for faster processing (~5s vs 15-30s):
+
+```bash
+# Update environment variable
+IDM_VTON_MODEL_ID=Zheng-Chong/CatVTON
+
+# Or use the Gradio fallback
+ENABLE_GRADIO_FALLBACK=true
+HF_SPACE_ENDPOINT=Zheng-Chong/CatVTON
+```
+
+Note: CatVTON is faster but slightly less accurate in texture preservation.
+
+---
+
+## Cost Comparison
+
+| Volume | Gemini Cost | IDM-VTON (Self-Hosted) | Savings |
+|--------|-------------|------------------------|---------|
+| 1,000/mo | $20-50 | $100 (cloud GPU) | -$50 |
+| 5,000/mo | $100-250 | $100 (cloud GPU) | $0-150 |
+| 10,000/mo | $200-500 | $150 (cloud GPU) | $50-350 |
+| 50,000/mo | $1,000-2,500 | $300 (dedicated GPU) | $700-2,200 |
+
+**Break-even point: ~5,000 try-ons/month**
 
 ---
 
 ## Support
 
-- Roadmap: `docs/CUSTOM_AI_MODEL_ROADMAP.md`
-- Model comparison: See roadmap document
-- Issues: Check logs at `/var/log/mirrorx/`
+- **Documentation**: `docs/CUSTOM_AI_MODEL_ROADMAP.md`
+- **Model comparison**: See roadmap document
+- **Issues**: Check server logs at `/app/logs/`
+- **GitHub**: https://github.com/yisol/IDM-VTON
