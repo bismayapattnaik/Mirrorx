@@ -1,0 +1,30 @@
+{
+  "name": "@mirrorx/ltx-trainer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LTX-2 360° rotation video generation training toolkit",
+  "keywords": [
+    "ltx",
+    "video-generation",
+    "diffusion",
+    "lora",
+    "training",
+    "360-video",
+    "virtual-try-on"
+  ],
+  "license": "MIT",
+  "author": "MirrorX Team",
+  "scripts": {
+    "setup": "pip install -r requirements.txt",
+    "prepare-dataset": "python scripts/prepare_360_dataset.py",
+    "train": "accelerate launch -m ltx_trainer.train --config configs/ltx2_360_lora.yaml",
+    "train:multi-gpu": "accelerate launch --multi_gpu -m ltx_trainer.train --config configs/ltx2_360_lora.yaml",
+    "lint": "black --check scripts/ && isort --check-only scripts/",
+    "format": "black scripts/ && isort scripts/",
+    "typecheck": "mypy scripts/"
+  },
+  "engines": {
+    "python": ">=3.10"
+  },
+  "readme": "README.md"
+}

@@ -1,0 +1,271 @@
+# ============================================================================
+# LTX-2 360 Degree Rotation Fine-Tuning Configuration
+# ============================================================================
+#
+# This configuration is optimized for training LTX-2 to generate 360-degree
+# rotation videos from a static image input (IDM-VTON output).
+#
+# Key optimizations:
+# - High LoRA rank (128) for capturing complex rotational motion
+# - Target temporal attention blocks for motion learning
+# - First-frame conditioning for image-to-video generation
+# - Identity preservation through high image guidance scale
+#
+# Usage:
+#   accelerate launch -m ltx_trainer.train --config packages/ltx-trainer/configs/ltx2_360_lora.yaml
+#
+# ============================================================================
+
+# Experiment Configuration
+experiment_id: "ltx2_360_rotation_v1"
+output_dir: "./outputs/ltx2_360"
+report_to: "tensorboard"
+logging_dir: "./logs/ltx2_360"
+
+# ============================================================================
+# Model Configuration
+# ============================================================================
+model:
+  # Base LTX-Video model from Lightricks
+  name: "Lightricks/LTX-Video"
+  variant: "standard"
+
+  # Model precision for training
+  dtype: "float16"
+
+  # Enable gradient checkpointing to reduce memory usage
+  gradient_checkpointing: true
+
+  # Use xformers for memory-efficient attention (if available)
+  enable_xformers: true
+
+# ============================================================================
+# LoRA Configuration - Parameter Efficient Fine-tuning
+# ============================================================================
+lora:
+  # High rank for capturing complex 360 rotation motion patterns
+  r: 128
+
+  # Alpha scaling factor (typically 2x rank)
+  alpha: 256
+
+  # Dropout for regularization
+  dropout: 0.1
+
+  # Target modules for LoRA adaptation
+  # We specifically target attention layers for motion understanding
+  target_modules:
+    # Spatial attention (for appearance preservation)
+    - "to_q"
+    - "to_k"
+    - "to_v"
+    - "to_out.0"
+
+    # Temporal attention (CRITICAL for rotation motion)
+    - "temporal_transformer_blocks"
+    - "temporal_self_attn.to_q"
+    - "temporal_self_attn.to_k"
+    - "temporal_self_attn.to_v"
+    - "temporal_self_attn.to_out.0"
+
+    # Cross-attention for text conditioning
+    - "cross_attn.to_q"
+    - "cross_attn.to_k"
+    - "cross_attn.to_v"
+
+  # Use RSLoRA for better convergence
+  use_rslora: true
+
+  # Initialize LoRA weights to produce zero output initially
+  init_lora_weights: "gaussian"
+
+# ============================================================================
+# Dataset Configuration
+# ============================================================================
+dataset:
+  # Path to the JSONL training data (created by prepare_360_dataset.py)
+  train_data: "./datasets/360_train.jsonl"
+
+  # Validation data (optional, for monitoring)
+  val_data: null
+
+  # Column names in JSONL
+  video_column: "video_path"
+  caption_column: "caption"
+
+  # Resolution - keep square or portrait for fashion
+  # Must match your training videos' aspect ratio
+  width: 512
+  height: 512
+
+  # Alternative resolutions for multi-resolution training
+  # resolutions:
+  #   - [512, 512]
+  #   - [512, 768]
+  #   - [768, 512]
+
+  # Frame sampling
+  num_frames: 121  # ~4 seconds at 30fps for full rotation
+  sample_stride: 1  # Use every frame
+
+  # Frame rate (videos will be resampled to this rate)
+  fps: 30
+
+  # Data augmentation
+  augmentation:
+    # Random horizontal flip (disabled for rotation to maintain direction)
+    random_flip: false
+
+    # Random crop (slight jitter)
+    random_crop: false
+
+    # Color jitter (disabled to preserve garment colors)
+    color_jitter: false
+
+    # Normalize to [-1, 1]
+    normalize: true
+
+# ============================================================================
+# Training Hyperparameters
+# ============================================================================
+training:
+  # Batch size per GPU
+  batch_size: 1
+
+  # Gradient accumulation for effective larger batch size
+  gradient_accumulation_steps: 4
+
+  # Learning rate
+  learning_rate: 1.0e-4
+
+  # Learning rate scheduler
+  lr_scheduler: "cosine"
+  lr_warmup_steps: 500
+
+  # Total training steps
+  max_train_steps: 5000
+
+  # Alternatively, train for a number of epochs
+  # num_epochs: 100
+
+  # Checkpointing
+  checkpointing_steps: 500
+  resume_from_checkpoint: null
+
+  # Mixed precision training
+  mixed_precision: "fp16"
+
+  # Random seed for reproducibility
+  seed: 42
+
+  # Gradient clipping
+  max_grad_norm: 1.0
+
+  # Weight decay for AdamW
+  weight_decay: 0.01
+
+  # Adam betas
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+
+  # EMA (Exponential Moving Average) for stable inference
+  use_ema: true
+  ema_decay: 0.9999
+
+  # ============================================================================
+  # Image-to-Video Conditioning (CRITICAL for this task)
+  # ============================================================================
+
+  # Condition on the first frame - this enables image-to-video generation
+  # The model learns to predict the rest of the video given the first frame
+  condition_on_start_frame: true
+
+  # Add slight noise to the conditioning frame to prevent overfitting
+  # to exact pixel values and improve generalization
+  start_frame_noise_level: 0.05
+
+  # Number of conditioning frames (1 = just the first frame)
+  num_conditioning_frames: 1
+
+  # Conditioning frame dropout for classifier-free guidance
+  conditioning_dropout_prob: 0.1
+
+# ============================================================================
+# Validation Configuration
+# ============================================================================
+validation:
+  # Run validation every N steps
+  validation_steps: 500
+
+  # Number of validation samples to generate
+  num_validation_samples: 4
+
+  # Validation prompts (should use the same trigger phrase as training)
+  prompts:
+    - "a 360-degree rotating shot of a person wearing a red dress, studio lighting, white background, high quality, 4k"
+    - "a 360-degree rotating shot of a person wearing a blue suit, studio lighting, white background, high quality, 4k"
+    - "a 360-degree rotating shot of a person wearing casual streetwear, studio lighting, white background, high quality, 4k"
+    - "a 360-degree rotating shot of a person wearing a floral print top, studio lighting, white background, high quality, 4k"
+
+  # Inference settings for validation
+  num_inference_steps: 30
+  guidance_scale: 3.0
+
+# ============================================================================
+# Inference Settings (for testing during/after training)
+# ============================================================================
+inference:
+  # Number of frames to generate
+  num_frames: 80  # ~3 seconds at 24fps
+
+  # Denoising steps (higher = better quality, slower)
+  num_inference_steps: 40
+
+  # Text guidance scale (controls motion strength)
+  guidance_scale: 3.0
+
+  # Image guidance scale (CRITICAL - high value preserves identity/garment)
+  image_guidance_scale: 1.8
+
+  # Decode in chunks to save VRAM
+  decode_chunk_size: 8
+
+  # Output format
+  output_type: "mp4"
+  output_fps: 24
+
+  # Negative prompt to prevent artifacts
+  negative_prompt: "morphing, dissolving, extra limbs, bad anatomy, blurry, static, jerky motion, distorted face, multiple people"
+
+# ============================================================================
+# Hardware Configuration
+# ============================================================================
+hardware:
+  # Number of GPUs
+  num_gpus: 1
+
+  # Enable TF32 for faster computation on Ampere GPUs
+  allow_tf32: true
+
+  # DataLoader workers
+  num_workers: 4
+
+  # Pin memory for faster data transfer
+  pin_memory: true
+
+# ============================================================================
+# Logging Configuration
+# ============================================================================
+logging:
+  # Log every N steps
+  log_steps: 10
+
+  # Log to wandb (optional)
+  use_wandb: false
+  wandb_project: "ltx2-360-rotation"
+
+  # Log generated videos during validation
+  log_validation_videos: true
+
+  # Log gradient norms
+  log_grad_norm: true

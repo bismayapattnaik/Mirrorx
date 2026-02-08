@@ -1,0 +1,148 @@
+# LTX-2 360 Video Generation Service - Docker Compose Configuration
+#
+# Usage:
+#   Development:  docker-compose up --build
+#   Production:   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   With GPU:     docker-compose up --build (requires nvidia-docker)
+#
+# Environment variables can be set in .env file or passed via command line
+
+version: "3.8"
+
+services:
+  # ===========================================================================
+  # LTX-2 Video Generation Service
+  # ===========================================================================
+  ltx2-video:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Use CPU-only image if no GPU available
+        # BASE_IMAGE: python:3.11-slim-bookworm
+        BASE_IMAGE: nvidia/cuda:12.1.0-runtime-ubuntu22.04
+
+    image: mirrorx/ltx2-video:latest
+    container_name: ltx2-video-service
+
+    # GPU Configuration (requires nvidia-docker)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    # For systems without nvidia-docker, use runtime instead:
+    # runtime: nvidia
+
+    ports:
+      - "${LTX_PORT:-5001}:5001"
+
+    environment:
+      # Model Configuration
+      - BASE_MODEL=${LTX_BASE_MODEL:-Lightricks/LTX-Video}
+      - LORA_PATH=${LTX_LORA_PATH:-/app/lora_weights}
+      - DEVICE=${LTX_DEVICE:-cuda}
+
+      # Performance Tuning
+      - MAX_CONCURRENT_JOBS=${LTX_MAX_CONCURRENT_JOBS:-2}
+      - DEFAULT_NUM_FRAMES=${LTX_DEFAULT_NUM_FRAMES:-80}
+      - DEFAULT_INFERENCE_STEPS=${LTX_DEFAULT_INFERENCE_STEPS:-40}
+      - DEFAULT_GUIDANCE_SCALE=${LTX_DEFAULT_GUIDANCE_SCALE:-3.0}
+      - DEFAULT_IMAGE_GUIDANCE_SCALE=${LTX_DEFAULT_IMAGE_GUIDANCE_SCALE:-1.8}
+
+      # Storage
+      - OUTPUT_DIR=/app/outputs
+      - HF_HOME=/app/models
+
+      # Server Configuration
+      - PORT=5001
+      - HOST=0.0.0.0
+
+      # Logging
+      - PYTHONUNBUFFERED=1
+
+    volumes:
+      # Persist model cache (prevents re-downloading on restart)
+      - ltx2_models:/app/models
+
+      # Persist generated outputs
+      - ltx2_outputs:/app/outputs
+
+      # Mount LoRA weights (if training locally)
+      - ${LTX_LORA_HOST_PATH:-./outputs/ltx2_360}:/app/lora_weights:ro
+
+      # Development: Mount source code for hot reload
+      # - ./inference_360.py:/app/inference_360.py:ro
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s  # Model loading takes time
+
+    restart: unless-stopped
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+    networks:
+      - mirrorx-network
+
+  # ===========================================================================
+  # Monitoring (Optional)
+  # ===========================================================================
+  # Uncomment to enable Prometheus metrics and Grafana dashboards
+
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: ltx2-prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  #     - prometheus_data:/prometheus
+  #   networks:
+  #     - mirrorx-network
+
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: ltx2-grafana
+  #   ports:
+  #     - "3001:3000"
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #   networks:
+  #     - mirrorx-network
+
+# ===========================================================================
+# Volumes
+# ===========================================================================
+volumes:
+  ltx2_models:
+    driver: local
+    name: ltx2_models
+
+  ltx2_outputs:
+    driver: local
+    name: ltx2_outputs
+
+  # prometheus_data:
+  #   driver: local
+
+  # grafana_data:
+  #   driver: local
+
+# ===========================================================================
+# Networks
+# ===========================================================================
+networks:
+  mirrorx-network:
+    name: mirrorx-network
+    driver: bridge
