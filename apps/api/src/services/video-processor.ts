@@ -61,7 +61,7 @@ export async function transformVideoChunk(
             throw new Error(`Decart API error: ${response.status} - ${errorText}`);
         }
 
-        const result = await response.json();
+        const result = await response.json() as { job_id: string };
 
         // Poll for completion (short timeout for live streaming)
         const processedVideo = await pollVideoJob(result.job_id, 30000); // 30s max for chunks
@@ -99,7 +99,7 @@ async function pollVideoJob(jobId: string, maxWaitMs: number): Promise<Buffer> {
             throw new Error(`Failed to get job status: ${response.statusText}`);
         }
 
-        const job = await response.json();
+        const job = await response.json() as { status: string };
 
         if (job.status === 'completed') {
             const videoResponse = await fetch(`${DECART_API_BASE}/jobs/${jobId}/content`, {
@@ -148,7 +148,8 @@ export async function generateClothingPrompt(clothingImageBase64: string): Promi
         }],
     });
 
-    return result.response?.text() || 'casual fashion outfit';
+    const response = result as any;
+    return response.response?.text?.() || response.text?.() || 'casual fashion outfit';
 }
 
 /**

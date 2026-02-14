@@ -118,7 +118,7 @@ CRITICAL: The output must be a single, seamless photo of the person.
         }
 
         // JSON response with job ID (async)
-        const result = await submitResponse.json();
+        const result = await submitResponse.json() as { data?: string; job_id?: string };
 
         if (result.data) {
             // If data is returned directly
@@ -187,7 +187,7 @@ Natural movement, consistent transformation, no flickering.`;
             throw new Error(`Decart API error: ${response.status} - ${errorText}`);
         }
 
-        const result = await response.json();
+        const result = await response.json() as { job_id: string };
         console.log(`[Decart] Video job submitted: ${result.job_id}`);
 
         return { jobId: result.job_id };
@@ -212,7 +212,7 @@ export async function getVideoJobStatus(jobId: string): Promise<VideoTryOnResult
             throw new Error(`Failed to get job status: ${response.statusText}`);
         }
 
-        const job = await response.json();
+        const job = await response.json() as { status: string };
 
         const result: VideoTryOnResult = {
             jobId: jobId,

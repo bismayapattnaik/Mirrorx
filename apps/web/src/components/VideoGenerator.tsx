@@ -8,20 +8,29 @@ import {
   CheckCircle,
   Clock,
   Sparkles,
+  Wand2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { tryOnApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
-interface Video360GeneratorProps {
+interface VideoGeneratorProps {
   /** The try-on result image (base64 with data URI prefix) */
   resultImage: string | null;
   /** Whether the user has enough credits */
   hasCredits: boolean;
-  /** Cost in credits for 360 video generation */
+  /** Cost in credits for video generation */
   creditCost?: number;
   /** Optional class name */
   className?: string;
@@ -29,12 +38,41 @@ interface Video360GeneratorProps {
 
 type JobStatus = 'idle' | 'submitting' | 'processing' | 'completed' | 'failed';
 
-export default function Video360Generator({
+// Preset motion styles for fashion videos
+const motionPresets = [
+  {
+    id: 'natural',
+    name: 'Natural Movement',
+    prompt: 'A person wearing fashionable clothing, natural subtle movement, breathing, slight body sway, confident pose, studio lighting, high quality',
+  },
+  {
+    id: 'catwalk',
+    name: 'Runway Walk',
+    prompt: 'A fashion model walking on a runway, confident stride, elegant movement, professional model walk, studio lighting, high fashion',
+  },
+  {
+    id: 'pose',
+    name: 'Strike a Pose',
+    prompt: 'A model striking different poses, smooth transitions between poses, fashion photography style, elegant movements, studio lighting',
+  },
+  {
+    id: 'turn',
+    name: 'Slow Turn',
+    prompt: 'A person slowly turning around to show outfit from all angles, smooth rotation, fashion showcase, studio lighting, elegant',
+  },
+  {
+    id: 'wind',
+    name: 'Wind Effect',
+    prompt: 'A person standing with wind blowing through hair and clothes, dynamic fabric movement, dramatic lighting, fashion editorial style',
+  },
+];
+
+export default function VideoGenerator({
   resultImage,
   hasCredits,
   creditCost = 5,
   className,
-}: Video360GeneratorProps) {
+}: VideoGeneratorProps) {
   const { toast } = useToast();
   const [status, setStatus] = useState<JobStatus>('idle');
   const [jobId, setJobId] = useState<string | null>(null);
@@ -42,6 +80,7 @@ export default function Video360Generator({
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isHealthy, setIsHealthy] = useState<boolean | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState('natural');
 
   // Check service health on mount
   useEffect(() => {
@@ -67,8 +106,8 @@ export default function Video360Generator({
           const url = URL.createObjectURL(blob);
           setVideoUrl(url);
           toast({
-            title: '360° Video Ready!',
-            description: 'Your rotating video has been generated.',
+            title: 'Video Ready!',
+            description: 'Your animated video has been generated.',
           });
           clearInterval(pollInterval);
         } else if (jobStatus.status === 'failed') {
@@ -103,7 +142,7 @@ export default function Video360Generator({
       toast({
         variant: 'destructive',
         title: 'Insufficient Credits',
-        description: `360° video requires ${creditCost} credits.`,
+        description: `Animated video requires ${creditCost} credits.`,
       });
       return;
     }
@@ -113,22 +152,24 @@ export default function Video360Generator({
     setErrorMessage(null);
     setVideoUrl(null);
 
+    const preset = motionPresets.find(p => p.id === selectedPreset) || motionPresets[0];
+
     try {
       const response = await tryOnApi.generate360Video(resultImage, {
-        prompt: 'a 360-degree rotating shot of a person wearing fashion clothing, studio lighting, white background, high quality, 4k',
-        numFrames: 80,
-        numInferenceSteps: 40,
-        guidanceScale: 3.0,
+        prompt: preset.prompt,
+        numFrames: 49,  // ~2 seconds at 24fps
+        numInferenceSteps: 30,
+        guidanceScale: 7.5,
       });
 
       setJobId(response.job_id);
       setStatus('processing');
       toast({
         title: 'Video Generation Started',
-        description: `Estimated time: ~${response.estimated_time_seconds}s`,
+        description: `Creating "${preset.name}" animation...`,
       });
     } catch (error) {
-      console.error('360 video submission error:', error);
+      console.error('Video submission error:', error);
       setStatus('failed');
       setErrorMessage((error as Error).message || 'Failed to start video generation');
       toast({
@@ -137,14 +178,14 @@ export default function Video360Generator({
         description: (error as Error).message || 'Please try again.',
       });
     }
-  }, [resultImage, hasCredits, creditCost, toast]);
+  }, [resultImage, hasCredits, creditCost, selectedPreset, toast]);
 
   const handleDownload = useCallback(() => {
     if (!videoUrl) return;
 
     const link = document.createElement('a');
     link.href = videoUrl;
-    link.download = `mirrorx-360-${Date.now()}.mp4`;
+    link.download = `mirrorx-video-${Date.now()}.mp4`;
     link.click();
   }, [videoUrl]);
 
@@ -169,7 +210,7 @@ export default function Video360Generator({
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
           <Video className="w-5 h-5 text-purple-400" />
-          360° Rotating Video
+          Animate Your Look
           {isHealthy === false && (
             <span className="text-xs text-yellow-500 ml-2">(Service Unavailable)</span>
           )}
@@ -177,7 +218,7 @@ export default function Video360Generator({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Generate a stunning 360° rotation video from your try-on result.
+          Bring your try-on result to life with AI-powered video generation.
         </p>
 
         <AnimatePresence mode="wait">
@@ -187,18 +228,42 @@ export default function Video360Generator({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              className="space-y-4"
             >
+              {/* Motion Style Selector */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Animation Style</Label>
+                <Select value={selectedPreset} onValueChange={setSelectedPreset}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select animation style" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {motionPresets.map((preset) => (
+                      <SelectItem key={preset.id} value={preset.id}>
+                        <div className="flex items-center gap-2">
+                          <Wand2 className="w-4 h-4 text-purple-400" />
+                          {preset.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {motionPresets.find(p => p.id === selectedPreset)?.prompt.slice(0, 60)}...
+                </p>
+              </div>
+
               <Button
                 className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90"
                 onClick={handleGenerate}
                 disabled={!hasCredits || isHealthy === false}
               >
                 <Sparkles className="w-4 h-4 mr-2" />
-                Generate 360° Video ({creditCost} credits)
+                Generate Video ({creditCost} credits)
               </Button>
               {!hasCredits && (
-                <p className="text-xs text-red-400 mt-2 text-center">
-                  Insufficient credits. 360° video requires {creditCost} credits.
+                <p className="text-xs text-red-400 text-center">
+                  Insufficient credits. Video generation requires {creditCost} credits.
                 </p>
               )}
             </motion.div>
@@ -224,8 +289,11 @@ export default function Video360Generator({
                   <Clock className="w-3 h-3" />
                   {progress}% complete
                 </span>
-                <span>~{Math.max(0, Math.round((100 - progress) * 0.6))}s remaining</span>
+                <span>~{Math.max(10, Math.round((100 - progress) * 0.3))}s remaining</span>
               </div>
+              <p className="text-xs text-muted-foreground text-center">
+                AI is animating your outfit with LTX-2...
+              </p>
             </motion.div>
           )}
 
@@ -249,7 +317,8 @@ export default function Video360Generator({
                   autoPlay
                   loop
                   muted
-                  className="w-full aspect-square object-contain"
+                  playsInline
+                  className="w-full aspect-[9/16] object-contain max-h-[400px]"
                 />
               </div>
 
@@ -301,7 +370,7 @@ export default function Video360Generator({
         </AnimatePresence>
 
         <p className="text-xs text-muted-foreground text-center">
-          AI-powered 360° rotation using LTX-2 video generation
+          Powered by LTX-2 Image-to-Video AI
         </p>
       </CardContent>
     </Card>

@@ -1,8 +1,9 @@
 """
-LTX-2 360° Video Generation Service for Modal
+LTX-2 Image-to-Video Generation Service for Modal
 Deploy with: modal deploy ltx2_service.py
 
-This creates a serverless GPU endpoint that MirrorX can call for 360° video generation.
+This creates a serverless GPU endpoint that MirrorX can call for image-to-video generation.
+Uses the official LTX-2 pipeline from Lightricks.
 """
 
 import modal
@@ -11,27 +12,35 @@ import base64
 from typing import Optional
 
 # Create the Modal app
-app = modal.App("ltx2-360-video")
+app = modal.App("ltx2-image-to-video")
 
-# Define the container image with all dependencies
+# Define the container image with LTX-2 dependencies
 ltx2_image = (
     modal.Image.debian_slim(python_version="3.11")
-    .apt_install("git", "ffmpeg", "libsm6", "libxext6")
+    .apt_install("git", "ffmpeg", "libsm6", "libxext6", "libgl1-mesa-glx")
     .pip_install(
         "torch>=2.1.0",
         "torchvision",
+        "torchaudio",
         "transformers>=4.36.0",
         "accelerate>=0.25.0",
         "safetensors",
         "diffusers>=0.25.0",
         "imageio[ffmpeg]",
+        "imageio-ffmpeg",
         "pillow",
         "numpy",
         "tqdm",
         "huggingface_hub",
+        "sentencepiece",
+        "einops",
+        "omegaconf",
+        "decord",
     )
     .run_commands(
-        "pip install xformers --index-url https://download.pytorch.org/whl/cu121"
+        "pip install xformers --index-url https://download.pytorch.org/whl/cu121",
+        # Clone LTX-2 repo for pipeline access
+        "git clone https://github.com/Lightricks/LTX-Video.git /opt/ltx-video",
     )
 )
 
@@ -40,77 +49,109 @@ model_volume = modal.Volume.from_name("ltx2-models", create_if_missing=True)
 
 
 @app.cls(
-    gpu=modal.gpu.A100(size="80GB"),  # or A10G for cost savings
+    gpu=modal.gpu.A100(size="80GB"),  # A100 80GB for best performance
     image=ltx2_image,
     volumes={"/models": model_volume},
     timeout=600,  # 10 minutes max
     container_idle_timeout=300,  # Keep warm for 5 minutes
     allow_concurrent_inputs=1,
 )
-class LTX2Service:
-    """LTX-2 Video Generation Service"""
+class LTX2ImageToVideo:
+    """LTX-2 Image-to-Video Generation Service"""
 
     @modal.enter()
     def setup(self):
         """Load models on container startup"""
         import torch
-        from huggingface_hub import hf_hub_download, snapshot_download
+        import sys
         import os
 
+        # Add LTX-Video to path
+        sys.path.insert(0, "/opt/ltx-video")
+
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"Using device: {self.device}")
+        self.dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+        print(f"Using device: {self.device}, dtype: {self.dtype}")
 
-        # Download LTX-2 models if not cached
-        model_path = "/models/ltx-2"
-        if not os.path.exists(model_path):
-            print("Downloading LTX-2 models...")
-            snapshot_download(
+        # Model paths
+        self.model_dir = "/models/ltx-2"
+        self.checkpoint_path = os.path.join(self.model_dir, "ltx-video-2b-v0.9.1.safetensors")
+
+        # Download models if not cached
+        if not os.path.exists(self.checkpoint_path):
+            print("Downloading LTX-2 models from HuggingFace...")
+            from huggingface_hub import hf_hub_download
+
+            os.makedirs(self.model_dir, exist_ok=True)
+
+            # Download distilled model (faster inference)
+            hf_hub_download(
                 repo_id="Lightricks/LTX-Video",
-                local_dir=model_path,
-                local_dir_use_symlinks=False,
+                filename="ltx-video-2b-v0.9.1.safetensors",
+                local_dir=self.model_dir,
             )
-            model_volume.commit()
 
-        # Download text encoder (Gemma)
-        gemma_path = "/models/gemma"
-        if not os.path.exists(gemma_path):
-            print("Downloading Gemma text encoder...")
-            snapshot_download(
-                repo_id="google/gemma-2b",
-                local_dir=gemma_path,
-                local_dir_use_symlinks=False,
-            )
             model_volume.commit()
+            print("Models downloaded successfully!")
 
-        print("Models loaded successfully!")
-        self.model_path = model_path
-        self.gemma_path = gemma_path
+        # Initialize the pipeline
+        self._init_pipeline()
+        print("LTX-2 pipeline initialized!")
+
+    def _init_pipeline(self):
+        """Initialize the LTX-2 image-to-video pipeline"""
+        import torch
+        from diffusers import DiffusionPipeline
+
+        try:
+            # Try to load from HuggingFace diffusers
+            self.pipe = DiffusionPipeline.from_pretrained(
+                "Lightricks/LTX-Video",
+                torch_dtype=self.dtype,
+                use_safetensors=True,
+            ).to(self.device)
+
+            # Enable memory optimizations
+            if hasattr(self.pipe, 'enable_model_cpu_offload'):
+                self.pipe.enable_model_cpu_offload()
+            if hasattr(self.pipe, 'enable_vae_slicing'):
+                self.pipe.enable_vae_slicing()
+
+            self.pipeline_loaded = True
+            print("Diffusers pipeline loaded successfully!")
+
+        except Exception as e:
+            print(f"Could not load diffusers pipeline: {e}")
+            print("Falling back to simulation mode...")
+            self.pipeline_loaded = False
 
     @modal.method()
-    def generate_360_video(
+    def generate_video(
         self,
         image_base64: str,
-        prompt: str = "a 360-degree rotating shot of a person wearing fashion clothing, studio lighting, white background, high quality",
-        negative_prompt: str = "morphing, dissolving, extra limbs, bad anatomy, blurry, static, jerky motion",
-        num_frames: int = 80,
-        num_inference_steps: int = 8,  # Distilled model uses 8 steps
-        guidance_scale: float = 3.0,
+        prompt: str = "A person standing confidently, slight natural movement, breathing, blinking, gentle sway",
+        negative_prompt: str = "static, frozen, blurry, distorted, morphing, extra limbs, bad anatomy",
+        num_frames: int = 49,  # ~2 seconds at 24fps
+        num_inference_steps: int = 30,
+        guidance_scale: float = 7.5,
         width: int = 512,
-        height: int = 512,
+        height: int = 768,
+        fps: int = 24,
         seed: Optional[int] = None,
     ) -> dict:
         """
-        Generate a 360° rotation video from an input image.
+        Generate a video from an input image using LTX-2.
 
         Args:
-            image_base64: Input image as base64 string
-            prompt: Text prompt describing the video
-            negative_prompt: What to avoid
-            num_frames: Number of frames (default 80 = ~3.2s at 25fps)
-            num_inference_steps: Denoising steps (8 for distilled, 20-40 for full)
-            guidance_scale: CFG scale (2.0-5.0)
-            width: Output width (must be divisible by 32)
-            height: Output height (must be divisible by 32)
+            image_base64: Input image as base64 string (with or without data URI prefix)
+            prompt: Text prompt describing the motion/action
+            negative_prompt: What to avoid in generation
+            num_frames: Number of frames to generate (25-121 recommended)
+            num_inference_steps: Denoising steps (20-50 for quality)
+            guidance_scale: CFG scale (5.0-10.0)
+            width: Output width (divisible by 32)
+            height: Output height (divisible by 32)
+            fps: Frames per second for output video
             seed: Random seed for reproducibility
 
         Returns:
@@ -131,41 +172,63 @@ class LTX2Service:
                 image_base64 = image_base64.split(",")[1]
             image_bytes = base64.b64decode(image_base64)
             input_image = Image.open(BytesIO(image_bytes)).convert("RGB")
-            input_image = input_image.resize((width, height), Image.Resampling.LANCZOS)
 
+            # Resize to target dimensions
+            input_image = input_image.resize((width, height), Image.Resampling.LANCZOS)
             print(f"Input image size: {input_image.size}")
 
             # Set seed for reproducibility
+            generator = None
             if seed is not None:
-                torch.manual_seed(seed)
+                generator = torch.Generator(device=self.device).manual_seed(seed)
                 np.random.seed(seed)
 
-            # For now, create a simulated 360 rotation effect
-            # In production, you would load the actual LTX-2 pipeline
-            # This is a placeholder that creates a smooth rotation animation
+            # Generate video frames
+            if self.pipeline_loaded:
+                print(f"Generating video with LTX-2: {num_frames} frames, {num_inference_steps} steps")
 
-            frames = []
-            img_array = np.array(input_image)
+                # Use the diffusers pipeline for image-to-video
+                output = self.pipe(
+                    prompt=prompt,
+                    negative_prompt=negative_prompt,
+                    image=input_image,
+                    num_frames=num_frames,
+                    num_inference_steps=num_inference_steps,
+                    guidance_scale=guidance_scale,
+                    generator=generator,
+                    output_type="np",
+                )
 
-            for i in range(num_frames):
-                # Create rotation effect by shifting the image
-                rotation_angle = (i / num_frames) * 360
-                # Simple horizontal shift to simulate rotation
-                shift = int((i / num_frames) * width) % width
-                rotated = np.roll(img_array, shift, axis=1)
-                frames.append(rotated)
+                # Extract frames from output
+                if hasattr(output, 'frames'):
+                    frames = output.frames[0]  # Shape: (num_frames, H, W, C)
+                else:
+                    frames = output.images
+
+                # Convert to uint8 if needed
+                if frames.max() <= 1.0:
+                    frames = (frames * 255).astype(np.uint8)
+
+            else:
+                # Fallback: Create a subtle animation effect
+                print("Using fallback animation (pipeline not loaded)")
+                frames = self._create_fallback_animation(
+                    input_image, num_frames, prompt
+                )
 
             # Encode video to MP4
             video_buffer = BytesIO()
-            fps = 25
             with imageio.get_writer(
                 video_buffer,
                 format="mp4",
                 fps=fps,
                 codec="libx264",
                 quality=8,
+                pixelformat="yuv420p",
             ) as writer:
                 for frame in frames:
+                    if isinstance(frame, Image.Image):
+                        frame = np.array(frame)
                     writer.append_data(frame)
 
             video_buffer.seek(0)
@@ -181,15 +244,54 @@ class LTX2Service:
                     "resolution": f"{width}x{height}",
                     "processing_time_ms": processing_time,
                     "fps": fps,
+                    "pipeline_used": "ltx2" if self.pipeline_loaded else "fallback",
                 },
             }
 
         except Exception as e:
+            import traceback
             print(f"Error generating video: {e}")
+            traceback.print_exc()
             return {
                 "status": "failed",
                 "error": str(e),
             }
+
+    def _create_fallback_animation(self, image: "Image.Image", num_frames: int, prompt: str) -> list:
+        """Create a subtle animation effect as fallback when pipeline isn't available"""
+        import numpy as np
+        from PIL import ImageEnhance, ImageFilter
+
+        frames = []
+        img_array = np.array(image)
+
+        # Detect if prompt suggests specific motion
+        prompt_lower = prompt.lower()
+
+        for i in range(num_frames):
+            t = i / num_frames
+            frame = image.copy()
+
+            # Add subtle breathing/movement effect
+            if "breathing" in prompt_lower or "natural" in prompt_lower:
+                # Subtle zoom oscillation (breathing effect)
+                scale = 1.0 + 0.01 * np.sin(2 * np.pi * t * 2)
+                w, h = frame.size
+                new_w, new_h = int(w * scale), int(h * scale)
+                frame = frame.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                # Crop back to original size
+                left = (new_w - w) // 2
+                top = (new_h - h) // 2
+                frame = frame.crop((left, top, left + w, top + h))
+
+            # Add subtle brightness variation
+            enhancer = ImageEnhance.Brightness(frame)
+            brightness = 1.0 + 0.02 * np.sin(2 * np.pi * t * 1.5)
+            frame = enhancer.enhance(brightness)
+
+            frames.append(np.array(frame))
+
+        return frames
 
     @modal.method()
     def health_check(self) -> dict:
@@ -198,20 +300,26 @@ class LTX2Service:
 
         return {
             "status": "healthy",
-            "model_loaded": True,
+            "model_loaded": self.pipeline_loaded,
+            "device": self.device,
             "gpu_available": torch.cuda.is_available(),
             "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
-            "gpu_memory_gb": torch.cuda.get_device_properties(0).total_memory / 1e9 if torch.cuda.is_available() else 0,
+            "gpu_memory_gb": round(torch.cuda.get_device_properties(0).total_memory / 1e9, 2) if torch.cuda.is_available() else 0,
         }
 
 
 # Web endpoint for HTTP access
-@app.function(image=ltx2_image, gpu=modal.gpu.A100(size="80GB"), timeout=600)
+@app.function(
+    image=ltx2_image,
+    gpu=modal.gpu.A100(size="80GB"),
+    timeout=600,
+    volumes={"/models": model_volume},
+)
 @modal.web_endpoint(method="POST")
 def generate(request: dict) -> dict:
     """HTTP endpoint for video generation"""
-    service = LTX2Service()
-    return service.generate_360_video.remote(**request)
+    service = LTX2ImageToVideo()
+    return service.generate_video.remote(**request)
 
 
 @app.function(image=ltx2_image)
@@ -222,6 +330,7 @@ def health() -> dict:
     return {
         "status": "healthy",
         "gpu_available": torch.cuda.is_available(),
+        "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
     }
 
 
@@ -229,11 +338,37 @@ def health() -> dict:
 @app.local_entrypoint()
 def main():
     """Test the service locally"""
-    print("Testing LTX-2 service...")
-    service = LTX2Service()
+    import base64
+    from pathlib import Path
+
+    print("Testing LTX-2 Image-to-Video service...")
+    service = LTX2ImageToVideo()
 
     # Test health check
     health = service.health_check.remote()
     print(f"Health: {health}")
 
-    print("Service is ready!")
+    # Test with a sample image (create a simple test image)
+    print("\nCreating test image...")
+    from PIL import Image
+    import io
+
+    # Create a simple test image
+    test_img = Image.new('RGB', (512, 768), color=(100, 150, 200))
+    buffer = io.BytesIO()
+    test_img.save(buffer, format='JPEG')
+    test_base64 = base64.b64encode(buffer.getvalue()).decode()
+
+    print("Generating test video...")
+    result = service.generate_video.remote(
+        image_base64=test_base64,
+        prompt="A person standing with subtle natural movement",
+        num_frames=25,
+        num_inference_steps=10,
+    )
+
+    print(f"Result status: {result.get('status')}")
+    if result.get('metadata'):
+        print(f"Metadata: {result['metadata']}")
+
+    print("\nService is ready!")

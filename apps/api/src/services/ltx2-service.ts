@@ -146,18 +146,29 @@ const isModalDeployment = (): boolean => {
   return url.includes('.modal.run');
 };
 
-// Default generation options
+// Check if using official LTX Studio API
+const isLTXStudioAPI = (): boolean => {
+  const url = process.env.LTX2_SERVICE_URL || process.env.LTX_SERVICE_URL || '';
+  return url.includes('ltx.studio') || url.includes('api.ltx');
+};
+
+// Get LTX API Key
+const getLTXApiKey = (): string | null => {
+  return process.env.LTX_API_KEY || process.env.LTX2_API_KEY || null;
+};
+
+// Default generation options for Image-to-Video
 const defaultGenerationOptions: LTX2GenerationOptions = {
   prompt:
-    'a 360-degree rotating shot of a person wearing fashion clothing, studio lighting, white background, high quality, 4k',
+    'A person wearing fashionable clothing, natural subtle movement, breathing, slight body sway, confident pose, studio lighting, high quality, cinematic',
   negativePrompt:
-    'morphing, dissolving, extra limbs, bad anatomy, blurry, static, jerky motion, distorted face, multiple people',
-  numFrames: 80,
-  numInferenceSteps: 40,
-  guidanceScale: 3.0,
-  imageGuidanceScale: 1.8,
+    'morphing, dissolving, extra limbs, bad anatomy, blurry, jerky motion, distorted face, multiple people, static, frozen',
+  numFrames: 49,  // ~2 seconds at 24fps
+  numInferenceSteps: 30,
+  guidanceScale: 7.5,
+  imageGuidanceScale: 1.5,
   width: 512,
-  height: 512,
+  height: 768,  // Portrait orientation for fashion
 };
 
 // ============================================
@@ -170,13 +181,23 @@ export class LTX2Service {
   private isHealthy: boolean = false;
   private lastHealthCheck: number = 0;
   private healthCheckInterval: number = 30000; // 30 seconds
+  private apiKey: string | null;
 
   constructor(config: Partial<LTX2Config> = {}) {
     this.config = { ...defaultConfig, ...config };
+    this.apiKey = getLTXApiKey();
+
+    // Create axios client with optional API key authentication
+    const headers: Record<string, string> = {};
+    if (this.apiKey && isLTXStudioAPI()) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+      headers['X-API-Key'] = this.apiKey;
+    }
 
     this.client = axios.create({
       baseURL: this.config.serviceUrl,
       timeout: this.config.timeout,
+      headers,
     });
 
     console.log(`[LTX-2] Service initialized with URL: ${this.config.serviceUrl}`);
@@ -187,8 +208,8 @@ export class LTX2Service {
   // ============================================
 
   /**
-   * Submit a 360-degree video generation job from an image (base64 or buffer).
-   * Supports both self-hosted and Modal deployment formats.
+   * Submit an image-to-video generation job from an image (base64 or buffer).
+   * Supports LTX Studio API, Modal, and self-hosted deployment formats.
    *
    * @param imageInput - Input image as base64 string or Buffer
    * @param options - Generation options
@@ -198,6 +219,11 @@ export class LTX2Service {
     imageInput: Buffer | string,
     options: LTX2GenerationOptions = {}
   ): Promise<LTX2JobResponse> {
+    // Handle LTX Studio API (official API with authentication)
+    if (isLTXStudioAPI()) {
+      return this.submitJobLTXStudio(imageInput, options);
+    }
+
     // Handle Modal deployment (synchronous, JSON-based)
     if (isModalDeployment()) {
       return this.submitJobModal(imageInput, options);
@@ -604,6 +630,113 @@ export class LTX2Service {
   async deleteJob(jobId: string): Promise<void> {
     await this.client.delete(`/job/${jobId}`);
     console.log(`[LTX-2] Job ${jobId} deleted`);
+  }
+
+  /**
+   * Submit job to LTX Studio API (official API with authentication).
+   */
+  private async submitJobLTXStudio(
+    imageInput: Buffer | string,
+    options: LTX2GenerationOptions = {}
+  ): Promise<LTX2JobResponse> {
+    const mergedOptions = { ...defaultGenerationOptions, ...options };
+    const jobId = `ltxstudio-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Convert to base64 if buffer
+    let imageBase64: string;
+    if (typeof imageInput === 'string') {
+      imageBase64 = imageInput.includes(',') ? imageInput : `data:image/jpeg;base64,${imageInput}`;
+    } else {
+      imageBase64 = `data:image/jpeg;base64,${imageInput.toString('base64')}`;
+    }
+
+    console.log(`[LTX-2/Studio] Submitting job ${jobId}...`);
+
+    try {
+      const response = await this.client.post<{
+        job_id?: string;
+        video_base64?: string;
+        status: string;
+        error?: string;
+        metadata?: {
+          num_frames?: number;
+          resolution?: string;
+          processing_time_ms?: number;
+        };
+      }>('/generate', {
+        image_base64: imageBase64,
+        prompt: mergedOptions.prompt,
+        negative_prompt: mergedOptions.negativePrompt,
+        num_frames: mergedOptions.numFrames,
+        num_inference_steps: mergedOptions.numInferenceSteps,
+        guidance_scale: mergedOptions.guidanceScale,
+        width: mergedOptions.width,
+        height: mergedOptions.height,
+        seed: mergedOptions.seed,
+      }, {
+        timeout: this.config.timeout,
+      });
+
+      const data = response.data;
+
+      if (data.status === 'completed' && data.video_base64) {
+        this.modalVideoCache.set(jobId, data.video_base64);
+        return {
+          jobId: data.job_id || jobId,
+          status: 'completed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          progress: 1,
+          resultUrl: `/download/${jobId}`,
+          errorMessage: null,
+          processingTimeMs: data.metadata?.processing_time_ms || null,
+          metadata: {
+            numFrames: data.metadata?.num_frames,
+            resolution: data.metadata?.resolution,
+          },
+        };
+      } else if (data.job_id) {
+        // Async job - return job ID for polling
+        return {
+          jobId: data.job_id,
+          status: 'pending' as JobStatus,
+          createdAt: new Date().toISOString(),
+          completedAt: null,
+          progress: 0,
+          resultUrl: null,
+          errorMessage: null,
+          processingTimeMs: null,
+          metadata: null,
+        };
+      } else {
+        return {
+          jobId,
+          status: 'failed',
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          progress: 0,
+          resultUrl: null,
+          errorMessage: data.error || 'Unknown error',
+          processingTimeMs: null,
+          metadata: null,
+        };
+      }
+    } catch (error) {
+      const err = error as Error;
+      console.error('[LTX-2/Studio] Generation failed:', err.message);
+
+      return {
+        jobId,
+        status: 'failed',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        progress: 0,
+        resultUrl: null,
+        errorMessage: err.message,
+        processingTimeMs: null,
+        metadata: null,
+      };
+    }
   }
 
   /**

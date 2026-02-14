@@ -1,15 +1,22 @@
-import { PredictionServiceClient } from '@google-cloud/aiplatform';
-import { helpers } from '@google-cloud/aiplatform';
+let PredictionServiceClient: any;
+let helpers: any;
+
+async function loadAIPlatform() {
+  if (!PredictionServiceClient) {
+    try {
+      // @ts-ignore - optional dependency, only needed when Vertex AI is configured
+      const mod = await import('@google-cloud/aiplatform');
+      PredictionServiceClient = mod.PredictionServiceClient;
+      helpers = mod.helpers;
+    } catch {
+      throw new Error('Vertex AI SDK not installed. Run: pnpm add @google-cloud/aiplatform');
+    }
+  }
+}
 
 const PROJECT_ID = process.env.GOOGLE_PROJECT_ID;
 const LOCATION = 'us-central1';
 const ENDPOINT_ID = process.env.VERTEX_ENDPOINT_ID;
-
-// Initialize Client
-const clientOptions = {
-  apiEndpoint: `${LOCATION}-aiplatform.googleapis.com`,
-};
-const predictionServiceClient = new PredictionServiceClient(clientOptions);
 
 export async function generateVtonImage(
   userImageBase64: string,
@@ -18,6 +25,13 @@ export async function generateVtonImage(
   if (!ENDPOINT_ID || !PROJECT_ID) {
     throw new Error('Vertex AI Configuration Missing (PROJECT_ID or ENDPOINT_ID)');
   }
+
+  await loadAIPlatform();
+
+  const clientOptions = {
+    apiEndpoint: `${LOCATION}-aiplatform.googleapis.com`,
+  };
+  const predictionServiceClient = new PredictionServiceClient(clientOptions);
 
   const endpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/endpoints/${ENDPOINT_ID}`;
 

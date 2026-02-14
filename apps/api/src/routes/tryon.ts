@@ -1203,7 +1203,7 @@ router.post(
 // GET /tryon/360/:jobId - Get 360° video job status
 router.get('/360/:jobId', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const { jobId } = req.params;
+    const jobId = req.params.jobId as string;
     const status = await ltx2Service.getJobStatus(jobId);
 
     res.json(status);
@@ -1219,7 +1219,7 @@ router.get('/360/:jobId', authenticate, async (req: AuthRequest, res: Response) 
 // GET /tryon/360/:jobId/download - Download completed 360° video
 router.get('/360/:jobId/download', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const { jobId } = req.params;
+    const jobId = req.params.jobId as string;
 
     // Check job status
     const status = await ltx2Service.getJobStatus(jobId);
@@ -1414,7 +1414,7 @@ router.post(
 // GET /tryon/video/:jobId - Get video try-on job status
 router.get('/video/:jobId', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const { jobId } = req.params;
+    const jobId = req.params.jobId as string;
     const status = await decart.getVideoJobStatus(jobId);
 
     res.json(status);
@@ -1430,7 +1430,7 @@ router.get('/video/:jobId', authenticate, async (req: AuthRequest, res: Response
 // GET /tryon/video/:jobId/download - Download completed video
 router.get('/video/:jobId/download', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const { jobId } = req.params;
+    const jobId = req.params.jobId as string;
 
     // Check job status first
     const status = await decart.getVideoJobStatus(jobId);

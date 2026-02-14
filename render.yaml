@@ -16,9 +16,9 @@ services:
     region: oregon  # or your preferred region
     plan: starter  # starter, standard, or pro
     buildCommand: |
-      cd apps/api && npm install && npm run build
+      npm i -g pnpm@9.15.0 && pnpm install --frozen-lockfile && pnpm --filter @mrrx/shared build && pnpm --filter @mrrx/api build
     startCommand: |
-      cd apps/api && npm run start
+      cd apps/api && npx tsx src/index.ts
     envVars:
       - key: NODE_ENV
         value: production
